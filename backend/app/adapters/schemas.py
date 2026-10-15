@@ -256,13 +256,19 @@ RecommendationResponse = _get_or_default("RecommendationResponse", _DefaultRecom
 class _DefaultRecommendationGenerateRequest(BaseModel):
     force_refresh: bool = False
 
+RecommendationGenerateRequest = _get_or_default("RecommendationGenerateRequest", _DefaultRecommendationGenerateRequest)
+
 
 class _DefaultRecommendationStatusUpdate(BaseModel):
     status: str = Field(description="One of 'new', 'acknowledged', 'dismissed', 'resolved'")
 
+RecommendationStatusUpdate = _get_or_default("RecommendationStatusUpdate", _DefaultRecommendationStatusUpdate)
+
 
 class _DefaultRecommendationAskRequest(BaseModel):
     question: str
+
+RecommendationAskRequest = _get_or_default("RecommendationAskRequest", _DefaultRecommendationAskRequest)
 
 
 class _DefaultRecommendationAskResponse(BaseModel):
