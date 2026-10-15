@@ -118,7 +118,7 @@ provider or credentials.
 Start the API from the repository root:
 
 ```powershell
-backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+backend/.venv/Scripts/python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
 The model initializes at API startup and may take time on first run while the
