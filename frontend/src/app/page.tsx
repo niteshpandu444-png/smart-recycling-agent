@@ -238,8 +238,8 @@ export default function MobileScannerPage() {
         </div>
       )}
 
-      {/* Global Error Banner (e.g. classification failure, network offline) */}
-      {scanError && (
+      {/* Global Error Banner for states other than preview */}
+      {scanError && currentState !== "PREVIEW" && (
         <div className="w-full max-w-md mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 text-xs flex items-start gap-2.5">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
           <div className="flex-1">
@@ -273,6 +273,7 @@ export default function MobileScannerPage() {
           file={capturedFile}
           onRetake={handleResetToScanner}
           onSubmit={handleAnalyzeImage}
+          errorMessage={scanError}
         />
       )}
 
@@ -285,6 +286,8 @@ export default function MobileScannerPage() {
       {currentState === "CLASSIFIED" && classificationResult && (
         <ClassificationCard
           scanResult={classificationResult}
+          imageFile={capturedFile}
+          idempotencyKey={activeIdempotencyKey}
           onConfirm={handleConfirmClassification}
           onCancel={handleResetToScanner}
           isConfirming={isConfirming}

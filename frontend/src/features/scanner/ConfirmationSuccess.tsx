@@ -49,6 +49,21 @@ export const ConfirmationSuccess: React.FC<ConfirmationSuccessProps> = ({
           </span>
         </div>
 
+        {confirmation.updated_inventory_count !== undefined && (
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-slate-500">Inventory Count:</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {confirmation.updated_inventory_count} items
+            </span>
+          </div>
+        )}
+
+        {confirmation.status === "duplicate" && (
+          <div className="py-1 px-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300">
+            Recorded previously (Idempotent retry handled safely).
+          </div>
+        )}
+
         <div className="flex justify-between items-center text-xs border-t border-slate-200 dark:border-slate-700/60 pt-2 text-[11px] text-slate-400">
           <span>Ref ID:</span>
           <span className="font-mono truncate max-w-[160px]">

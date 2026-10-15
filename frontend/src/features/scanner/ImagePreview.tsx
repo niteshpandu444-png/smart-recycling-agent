@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Sparkles, RotateCcw, AlertTriangle } from "lucide-react";
+import { Sparkles, RotateCcw, AlertTriangle, RefreshCw } from "lucide-react";
 
 interface ImagePreviewProps {
   file: File;
   onRetake: () => void;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  errorMessage?: string | null;
 }
 
 export const ImagePreview: React.FC<ImagePreviewProps> = ({
@@ -15,6 +16,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
   onRetake,
   onSubmit,
   isSubmitting = false,
+  errorMessage = null,
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -57,11 +59,21 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
         </div>
       </div>
 
-      {/* Advisory Note */}
-      <div className="mt-3 w-full flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 text-xs">
-        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-        <p>Ensure the item is visible and clearly lit for accurate computer vision classification.</p>
-      </div>
+      {/* Advisory Note or Error Banner */}
+      {errorMessage ? (
+        <div className="mt-3 w-full flex items-start gap-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-2.5 rounded-xl text-red-700 dark:text-red-300 text-xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+          <div className="flex-1">
+            <p className="font-semibold">Analysis Failed</p>
+            <p className="mt-0.5">{errorMessage}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 w-full flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 text-xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p>Ensure the item is visible and clearly lit for accurate computer vision classification.</p>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="mt-4 flex items-center gap-3 w-full">
@@ -81,8 +93,17 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
           disabled={isSubmitting}
           className="flex-1 py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 transition-all shadow-md"
         >
-          <Sparkles className="w-4 h-4" />
-          Analyze Waste
+          {errorMessage ? (
+            <>
+              <RefreshCw className="w-4 h-4" />
+              Retry Analysis
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Analyze Waste
+            </>
+          )}
         </button>
       </div>
     </div>
