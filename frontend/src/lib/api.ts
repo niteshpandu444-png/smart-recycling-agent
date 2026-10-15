@@ -20,6 +20,7 @@ import {
   DigitalTwinSnapshot,
   EventHistoryResponse,
   RecommendationsResponse,
+  RecommendationItem,
   GenerateRecommendationsRequest,
   ApiErrorResponse,
 } from "@/types/api";
@@ -249,7 +250,7 @@ export async function submitScan(file: File | Blob): Promise<ScanClassificationR
 }
 
 /**
- * POST /api/scans/{id}/confirm
+ * POST /api/materials/confirm
  * Submits confirmed item classification to be committed to the Digital Twin inventory.
  * Requires an idempotency key to prevent accidental duplicate additions on retry.
  */
@@ -261,19 +262,35 @@ export async function confirmScan(
     throw new ApiError("Scan ID is required for confirmation.", 400, "MISSING_SCAN_ID");
   }
 
-  const url = `${getApiBaseUrl()}/api/scans/${encodeURIComponent(scanId)}/confirm`;
+  const url = `${getApiBaseUrl()}/api/materials/confirm`;
   const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "Idempotency-Key": payload.idempotency_key,
+      ...(payload.idempotency_key
+        ? { "Idempotency-Key": payload.idempotency_key }
+        : {}),
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, scan_id: scanId }),
     timeoutMs: 15000,
   });
 
-  return handleResponse<ScanConfirmationResponse>(response);
+  const result = await handleResponse<ScanConfirmationResponse>(response);
+  if (
+    response.status !== 201 ||
+    !result ||
+    typeof result.id !== "string" ||
+    result.scan_id !== scanId ||
+    typeof result.confirmed_category !== "string"
+  ) {
+    throw new ApiError(
+      "The backend did not return a valid persisted material confirmation.",
+      response.status,
+      "INVALID_CONFIRMATION_RESPONSE"
+    );
+  }
+  return result;
 }
 
 /**
@@ -324,7 +341,7 @@ export async function getRecommendations(): Promise<RecommendationsResponse> {
  */
 export async function generateRecommendations(
   payload?: GenerateRecommendationsRequest
-): Promise<RecommendationsResponse> {
+): Promise<RecommendationItem> {
   const url = `${getApiBaseUrl()}/api/recommendations/generate`;
   const response = await fetchWithTimeout(url, {
     method: "POST",
@@ -335,5 +352,5 @@ export async function generateRecommendations(
     body: payload ? JSON.stringify(payload) : "{}",
     timeoutMs: 25000,
   });
-  return handleResponse<RecommendationsResponse>(response);
+  return handleResponse<RecommendationItem>(response);
 }

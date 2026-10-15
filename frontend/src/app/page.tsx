@@ -119,7 +119,7 @@ export default function MobileScannerPage() {
 
     const fullPayload: ScanConfirmationRequest = {
       ...payload,
-      idempotency_key: idempKey,
+      idempotency_key: payload.idempotency_key || idempKey,
     };
     setLastConfirmationPayload(fullPayload);
 
