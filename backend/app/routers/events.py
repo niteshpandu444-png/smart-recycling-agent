@@ -30,6 +30,8 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 def get_events_endpoint(
     limit: int = Query(50, ge=1, le=200),
     cursor: Optional[str] = Query(None, description="Cursor for pagination (event ID)"),
+    last_event_id: Optional[str] = Query(None, description="Replay events committed after this event ID"),
+    since_id: Optional[str] = Query(None, description="Alias for last_event_id for reconnect replay"),
     category: Optional[str] = Query(None, description="Filter by material category"),
     bin_id: Optional[str] = Query(None, description="Filter by source or destination bin ID"),
     event_type: Optional[str] = Query(None, description="Filter by event type"),
@@ -38,12 +40,14 @@ def get_events_endpoint(
     db: Session = Depends(get_db),
 ):
     """
-    Returns immutable event audit records with filtering and cursor pagination.
+    Returns immutable event audit records with filtering, cursor pagination, and reconnect replay.
     """
+    effective_last_event_id = last_event_id or since_id
     items, next_cursor, total_count = get_filtered_events(
         db=db,
         limit=limit,
         cursor=cursor,
+        last_event_id=effective_last_event_id,
         category=category,
         bin_id=bin_id,
         event_type=event_type,
@@ -52,6 +56,7 @@ def get_events_endpoint(
     )
     return EventListResponse(
         items=items,
+        events=items,
         next_cursor=next_cursor,
         total_count=total_count,
     )

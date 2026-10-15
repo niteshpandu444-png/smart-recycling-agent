@@ -133,6 +133,8 @@ class _DefaultBinSnapshot(BaseModel):
     occupancy_percentage: Optional[float] = None
     status: str
     contamination_risk: float = 0.0
+    last_updated: Optional[datetime] = None
+    needs_service: Optional[bool] = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -154,6 +156,8 @@ BinTransferRequest = _get_or_default("BinTransferRequest", _DefaultBinTransferRe
 class _DefaultDigitalTwinSnapshot(BaseModel):
     timestamp: datetime
     total_confirmed_items: float
+    total_items_processed: Optional[float] = None
+    active_routes: Optional[int] = None
     category_inventory: Dict[str, float]
     bins: List[BinSnapshot]
     processing_totals: Dict[str, float]
@@ -222,8 +226,13 @@ MaterialEventResponse = _get_or_default("MaterialEventResponse", _DefaultMateria
 
 class _DefaultEventListResponse(BaseModel):
     items: List[MaterialEventResponse]
+    events: Optional[List[MaterialEventResponse]] = None
     next_cursor: Optional[str] = None
     total_count: int
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.events is None:
+            self.events = self.items
 
 EventListResponse = _get_or_default("EventListResponse", _DefaultEventListResponse)
 
@@ -235,12 +244,29 @@ class _DefaultEventReversalRequest(BaseModel):
 EventReversalRequest = _get_or_default("EventReversalRequest", _DefaultEventReversalRequest)
 
 
+# ----------------- SNAPSHOT HISTORY SCHEMAS -----------------
+
+class _DefaultSnapshotRecordResponse(BaseModel):
+    id: str
+    timestamp: datetime
+    total_items: float
+    bin_states: Dict[str, Any]
+    is_demo: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+SnapshotRecordResponse = _get_or_default("SnapshotRecordResponse", _DefaultSnapshotRecordResponse)
+
+
 # ----------------- RECOMMENDATION SCHEMAS -----------------
 
 class _DefaultRecommendationResponse(BaseModel):
     id: str
     title: str
     recommendation_text: str
+    description: Optional[str] = None
+    action_type: Optional[str] = None
+    severity: Optional[str] = "medium"
     generation_method: str  # llm | deterministic_fallback
     supporting_data: Dict[str, Any]
     status: str
@@ -249,6 +275,14 @@ class _DefaultRecommendationResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.description is None:
+            self.description = self.recommendation_text
+        if self.action_type is None and isinstance(self.supporting_data, dict):
+            self.action_type = self.supporting_data.get("action_type", "sorting_action")
+        if (self.severity is None or self.severity == "medium") and isinstance(self.supporting_data, dict):
+            self.severity = self.supporting_data.get("severity", "medium")
 
 RecommendationResponse = _get_or_default("RecommendationResponse", _DefaultRecommendationResponse)
 

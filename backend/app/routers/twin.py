@@ -1,18 +1,21 @@
 """
 Digital Twin Router.
-Provides real-time Digital Twin state snapshots and what-if simulation endpoints.
+Provides real-time Digital Twin state snapshots, historical records, and what-if simulation endpoints.
 """
-from fastapi import APIRouter, Depends, status
+from typing import List
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
 from backend.app.adapters.schemas import (
     DigitalTwinSnapshot,
+    SnapshotRecordResponse,
     SimulationRequest,
     SimulationResponse,
 )
 from backend.app.services.digital_twin_service import (
     get_digital_twin_snapshot,
+    get_snapshot_history,
     simulate_what_if,
 )
 
@@ -30,6 +33,21 @@ def get_twin_snapshot_endpoint(db: Session = Depends(get_db)):
     and processing totals strictly computed from persisted database records.
     """
     return get_digital_twin_snapshot(db)
+
+
+@router.get(
+    "/history",
+    response_model=List[SnapshotRecordResponse],
+    summary="Get read-only historical Digital Twin snapshot records",
+)
+def get_twin_history_endpoint(
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns immutable historical snapshot records written during committed inventory changes.
+    """
+    return get_snapshot_history(db, limit=limit)
 
 
 @router.post(

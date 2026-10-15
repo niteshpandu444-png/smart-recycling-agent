@@ -6,10 +6,12 @@ import logging
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from backend.app.models import Scan, MaterialEntry, VirtualBin, MaterialEvent
 from backend.app.adapters.schemas import MaterialConfirmRequest, ReclassifyRequest
 from backend.app.adapters.event_publisher import publish_event
+from backend.app.services.digital_twin_service import record_snapshot_state
 from backend.app.services.routing_rules import (
     evaluate_uncertainty,
     resolve_destination,
@@ -159,8 +161,29 @@ def confirm_material(
     }
 
     try:
-        # Update bin inventory & status
-        target_bin.current_inventory += request.quantity
+        # Atomic conditional update on virtual_bin to guard against concurrent overflow
+        updated_rows = (
+            db.query(VirtualBin)
+            .filter(
+                VirtualBin.id == target_bin.id,
+                VirtualBin.current_inventory + request.quantity <= VirtualBin.capacity,
+            )
+            .update(
+                {VirtualBin.current_inventory: VirtualBin.current_inventory + request.quantity},
+                synchronize_session="fetch",
+            )
+        )
+
+        if updated_rows == 0:
+            db.refresh(target_bin)
+            raise BinOverflowError(
+                bin_id=target_bin.id,
+                capacity=target_bin.capacity,
+                current=target_bin.current_inventory,
+                added=request.quantity,
+            )
+
+        # Update status based on new inventory
         ratio = target_bin.current_inventory / target_bin.capacity
         if ratio >= 1.0:
             target_bin.status = "full"
@@ -209,9 +232,37 @@ def confirm_material(
         )
         db.add(event)
 
+        # Record snapshot state atomically with the confirmation
+        record_snapshot_state(db, is_demo=scan.is_demo)
+
         db.commit()
         db.refresh(entry)
 
+    except IntegrityError:
+        db.rollback()
+        # Handle concurrent race condition for idempotency key or duplicate scan confirmation
+        if effective_idempotency_key:
+            existing_event = (
+                db.query(MaterialEvent)
+                .filter(MaterialEvent.idempotency_key == effective_idempotency_key)
+                .first()
+            )
+            if existing_event and existing_event.material_id:
+                existing_entry = (
+                    db.query(MaterialEntry)
+                    .filter(MaterialEntry.id == existing_event.material_id)
+                    .first()
+                )
+                if existing_entry:
+                    return existing_entry
+        existing_entry = (
+            db.query(MaterialEntry)
+            .filter(MaterialEntry.scan_id == scan.id)
+            .first()
+        )
+        if existing_entry or scan.review_status == "confirmed":
+            raise ScanAlreadyConfirmedError(f"Scan '{scan.id}' has already been confirmed.")
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Transaction failed during confirmation: {e}")
@@ -330,7 +381,7 @@ def reclassify_material(
             is_demo=entry.is_demo,
         )
         db.add(event)
-
+        record_snapshot_state(db, is_demo=entry.is_demo)
         db.commit()
         db.refresh(entry)
 
@@ -377,6 +428,7 @@ def empty_virtual_bin(db: Session, bin_id: str, reason: Optional[str] = None) ->
             is_demo=bin_obj.is_demo,
         )
         db.add(event)
+        record_snapshot_state(db, is_demo=bin_obj.is_demo)
         db.commit()
         db.refresh(bin_obj)
     except Exception:
@@ -422,6 +474,7 @@ def transfer_virtual_bin(
             is_demo=from_bin.is_demo,
         )
         db.add(event)
+        record_snapshot_state(db, is_demo=from_bin.is_demo)
         db.commit()
     except Exception:
         db.rollback()
@@ -479,6 +532,7 @@ def reverse_material_event(db: Session, event_id: str, reason: Optional[str] = N
             is_demo=orig_event.is_demo,
         )
         db.add(rev_event)
+        record_snapshot_state(db, is_demo=orig_event.is_demo)
         db.commit()
         db.refresh(rev_event)
     except Exception:

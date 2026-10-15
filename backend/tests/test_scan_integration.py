@@ -65,7 +65,12 @@ def test_scan_confirm_snapshot_websocket_and_reopen(integrated_client):
     client, test_sessions = integrated_client
     registered = []
     register_event_listener(lambda event_type, _payload: registered.append(event_type))
-    routes = [route.path for route in main.app.routes]
+    routes = []
+    for route in main.app.routes:
+        if hasattr(route, "path"):
+            routes.append(route.path)
+        elif hasattr(route, "original_router"):
+            routes.extend([sub.path for sub in route.original_router.routes])
     for prefix in (
         "/api/materials",
         "/api/twin",

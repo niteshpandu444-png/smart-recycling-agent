@@ -6,7 +6,7 @@ and read-only what-if simulations strictly from persisted database records.
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, asc
 
 from backend.app.models import VirtualBin, MaterialEntry, MaterialEvent, Scan, SnapshotRecord
 from backend.app.adapters.schemas import (
@@ -83,6 +83,8 @@ def get_digital_twin_snapshot(db: Session) -> DigitalTwinSnapshot:
                 occupancy_percentage=occupancy,
                 status=b.status,
                 contamination_risk=contam_risk,
+                last_updated=getattr(b, "updated_at", None),
+                needs_service=bool(occupancy is not None and occupancy >= 90.0),
             )
         )
 
@@ -112,9 +114,13 @@ def get_digital_twin_snapshot(db: Session) -> DigitalTwinSnapshot:
     )
     processing_totals = {cat: float(qty) for cat, qty in processing_rows}
 
+    active_routes = len([b for b in bin_snapshots if b.current_inventory > 0])
+
     snapshot = DigitalTwinSnapshot(
         timestamp=datetime.now(timezone.utc),
         total_confirmed_items=float(total_confirmed),
+        total_items_processed=float(total_confirmed),
+        active_routes=active_routes,
         category_inventory={k: round(v, 2) for k, v in category_inventory.items()},
         bins=bin_snapshots,
         processing_totals=processing_totals,
@@ -124,10 +130,60 @@ def get_digital_twin_snapshot(db: Session) -> DigitalTwinSnapshot:
     return snapshot
 
 
+def record_snapshot_state(db: Session, is_demo: bool = False) -> SnapshotRecord:
+    """
+    Captures and persists a SnapshotRecord containing the current inventory and bin states.
+    Written synchronously during committed inventory-changing transactions.
+    """
+    bins = db.query(VirtualBin).order_by(VirtualBin.id).all()
+    total_confirmed = (
+        db.query(func.coalesce(func.sum(MaterialEntry.quantity), 0.0))
+        .filter(MaterialEntry.processing_status.in_(["confirmed", "processed"]))
+        .scalar()
+    )
+
+    bin_states: Dict[str, Any] = {}
+    for b in bins:
+        occupancy = None
+        if b.capacity > 0:
+            occupancy = round((b.current_inventory / b.capacity) * 100.0, 1)
+        bin_states[b.id] = {
+            "name": b.name,
+            "category": b.accepted_category,
+            "current_inventory": round(b.current_inventory, 2),
+            "capacity": round(b.capacity, 2),
+            "inventory_unit": b.inventory_unit,
+            "occupancy_percentage": occupancy,
+            "status": b.status,
+        }
+
+    rec = SnapshotRecord(
+        total_items=float(total_confirmed),
+        bin_states=bin_states,
+        is_demo=is_demo,
+        timestamp=datetime.now(timezone.utc),
+    )
+    db.add(rec)
+    return rec
+
+
+def get_snapshot_history(db: Session, limit: int = 50) -> List[SnapshotRecord]:
+    """
+    Retrieves historical snapshot records ordered newest first.
+    """
+    return (
+        db.query(SnapshotRecord)
+        .order_by(desc(SnapshotRecord.timestamp), desc(SnapshotRecord.id))
+        .limit(limit)
+        .all()
+    )
+
+
 def get_filtered_events(
     db: Session,
     limit: int = 50,
     cursor: Optional[str] = None,
+    last_event_id: Optional[str] = None,
     category: Optional[str] = None,
     bin_id: Optional[str] = None,
     event_type: Optional[str] = None,
@@ -135,7 +191,7 @@ def get_filtered_events(
     end_time: Optional[datetime] = None,
 ) -> Tuple[List[MaterialEvent], Optional[str], int]:
     """
-    Retrieves filtered events with cursor-based pagination.
+    Retrieves filtered events with cursor-based pagination and reconnect event replay.
     """
     query = db.query(MaterialEvent)
 
@@ -152,15 +208,38 @@ def get_filtered_events(
     if end_time:
         query = query.filter(MaterialEvent.timestamp <= end_time)
 
+    # Reconnect replay: if last_event_id is provided, fetch events committed AFTER that event
+    if last_event_id:
+        last_event = db.query(MaterialEvent).filter(MaterialEvent.id == last_event_id).first()
+        if last_event:
+            query = query.filter(
+                (MaterialEvent.timestamp > last_event.timestamp)
+                | (
+                    (MaterialEvent.timestamp == last_event.timestamp)
+                    & (MaterialEvent.id > last_event.id)
+                )
+            )
+
     total_count = query.count()
 
-    # Cursor ordering
+    # Cursor ordering for pagination (fetching older events)
     if cursor:
         cursor_event = db.query(MaterialEvent).filter(MaterialEvent.id == cursor).first()
         if cursor_event:
-            query = query.filter(MaterialEvent.timestamp < cursor_event.timestamp)
+            query = query.filter(
+                (MaterialEvent.timestamp < cursor_event.timestamp)
+                | (
+                    (MaterialEvent.timestamp == cursor_event.timestamp)
+                    & (MaterialEvent.id < cursor_event.id)
+                )
+            )
 
-    items = query.order_by(desc(MaterialEvent.timestamp), desc(MaterialEvent.id)).limit(limit + 1).all()
+    if last_event_id:
+        # For reconnect replay, order ascending so the client can process missed events in arrival order
+        items = query.order_by(asc(MaterialEvent.timestamp), asc(MaterialEvent.id)).limit(limit + 1).all()
+    else:
+        # For standard history query, order descending (newest first)
+        items = query.order_by(desc(MaterialEvent.timestamp), desc(MaterialEvent.id)).limit(limit + 1).all()
 
     next_cursor = None
     if len(items) > limit:
