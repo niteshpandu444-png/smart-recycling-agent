@@ -1,206 +1,144 @@
-/**
- * ==============================================================================
- * Smart Recycling Agent — Shared API Types & Contracts
- * ==============================================================================
- * This file serves as the canonical TypeScript interface definition across both
- * frontend components:
- * 1. Mobile Scanner UI (Item classification, review, confirmation)
- * 2. Digital Twin Dashboard UI (Inventory tracking, material flow, recommendations)
- *
- * All types mirror the contract specified in frontend/API_CONTRACT.md.
- * ==============================================================================
- */
+/** Shared frontend types matching the FastAPI integration contract. */
 
-/**
- * Standard classification categories recognized across the recycling system.
- */
-export type RecyclingCategory =
-  | "recyclable"
-  | "reusable"
+export type ClassificationCategory = "recyclable" | "reusable" | "biodegradable" | "hazardous";
+export type MaterialCategory =
+  | "plastic"
+  | "paper"
+  | "metal"
+  | "glass"
+  | "organic"
   | "biodegradable"
-  | "hazardous";
+  | "compostable"
+  | "holding"
+  | "hazardous"
+  | "reusable";
+export type ClassificationStatus = "success" | "uncertain";
 
-/**
- * Model classification outcome status.
- * - 'success': Confidence threshold met; route determined.
- * - 'uncertain': Low confidence or ambiguous features; manual review required.
- * - 'failed': Image unclassifiable, obstructed, or unreadable.
- */
-export type ClassificationStatus = "success" | "uncertain" | "failed";
-
-/**
- * Standardized API error response format returned by backend endpoints.
- */
 export interface ApiErrorDetail {
   code: string;
   message: string;
   details?: Record<string, unknown> | null;
 }
+export interface ApiErrorResponse { error: ApiErrorDetail }
 
-export interface ApiErrorResponse {
-  error: ApiErrorDetail;
-}
+/** GET /api/health */
+export interface HealthResponse { status: "ok" }
 
-/**
- * GET /api/health
- */
-export interface HealthResponse {
-  status: "ok" | "degraded" | "error";
-  version: string;
-  uptime_seconds?: number;
-  timestamp: string;
-}
-
-/**
- * GET /api/model/status
- */
+/** GET /api/model/status */
 export interface ModelStatusResponse {
+  initialized_successfully: boolean;
   model_identifier: string;
-  is_loaded: boolean;
-  device?: "cpu" | "cuda" | "mps" | string;
-  inference_latency_ms?: number;
-  supported_categories: RecyclingCategory[];
-  version?: string;
+  inference_available: boolean;
+  diagnostic_status: string;
 }
 
-/**
- * POST /api/scans
- * Request: multipart/form-data with field name 'file'
- */
+/** POST /api/scans, multipart field `file`. */
 export interface ScanClassificationResponse {
   scan_id: string;
-  predicted_item: string;
-  predicted_category: RecyclingCategory;
-  /**
-   * Model-specific confidence score (0.0 to 1.0).
-   * Note: Treat as a model-relative score, not a guaranteed real-world probability.
-   */
-  match_score?: number | null;
+  predicted_item: string | null;
+  predicted_category: ClassificationCategory | null;
+  /** Model-specific score; it is not a calibrated probability. */
+  match_score: number | null;
   manual_review_recommended: boolean;
   suggested_route: string;
   explanation: string;
   model_identifier: string;
   classification_status: ClassificationStatus;
-  created_at?: string;
 }
 
-/**
- * POST /api/scans/{id}/confirm
- * Request payload to verify or override the classification before recording in inventory.
- */
+/** POST /api/materials/confirm. `destination_bin_id` is optional; backend routing applies when omitted. */
 export interface ScanConfirmationRequest {
-  confirmed_item: string;
-  confirmed_category: RecyclingCategory;
-  destination_id: string;
-  /**
-   * Client-generated UUID to prevent duplicate confirmations during network retries.
-   */
-  idempotency_key: string;
-}
-
-/**
- * POST /api/scans/{id}/confirm
- * Response confirming that the item has been committed to the Digital Twin inventory.
- */
-export interface ScanConfirmationResponse {
-  confirmation_id: string;
   scan_id: string;
-  confirmed_item: string;
-  confirmed_category: RecyclingCategory;
-  destination_id: string;
-  status: "recorded" | "duplicate" | "failed";
-  recorded_at: string;
-  updated_inventory_count?: number;
+  confirmed_category: MaterialCategory;
+  quantity?: number;
+  unit?: string;
+  destination_bin_id?: string;
+  confirmation_source?: "model_accepted" | "user_corrected" | "manual_review" | string;
+  description?: string;
+  verification_answers?: Record<string, unknown>;
+  idempotency_key?: string;
 }
 
-/**
- * Digital Twin bin state
- */
+/** POST /api/materials/confirm (HTTP 201). */
+export interface ScanConfirmationResponse {
+  id: string;
+  scan_id: string;
+  description: string | null;
+  category: MaterialCategory;
+  confirmed_category: MaterialCategory;
+  predicted_category: string | null;
+  quantity: number;
+  unit: string;
+  destination: string;
+  processing_status: string;
+  confirmation_source: string;
+  confidence_at_confirmation: number | null;
+  verification_answers: Record<string, unknown> | null;
+  is_demo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /api/twin/snapshot */
 export interface DigitalTwinBin {
   id: string;
   name: string;
-  category: RecyclingCategory;
-  current_fill_kg: number;
-  max_capacity_kg: number;
-  fill_percentage: number;
-  last_updated: string;
+  accepted_category: string;
+  current_inventory: number;
+  capacity: number;
+  inventory_unit: string;
+  occupancy_percentage: number;
+  status: string;
+  contamination_risk: number;
 }
-
-/**
- * GET /api/twin/snapshot
- * Used by the Digital Twin dashboard to render real-time material flows and inventory.
- */
 export interface DigitalTwinSnapshot {
-  snapshot_id: string;
   timestamp: string;
+  total_confirmed_items: number;
+  category_inventory: Record<string, number>;
   bins: DigitalTwinBin[];
-  total_items_processed: number;
-  active_routes: number;
+  processing_totals: Record<string, number>;
+  pending_verification_count: number;
 }
 
-/**
- * GET /api/events
- */
+/** GET /api/events */
 export interface EventItem {
-  event_id: string;
-  event_type:
-    | "scan_detected"
-    | "scan_confirmed"
-    | "route_updated"
-    | "threshold_alert"
-    | string;
-  item_name: string;
-  category: RecyclingCategory;
-  destination_id: string;
+  id: string;
+  event_type: string;
+  material_id: string | null;
+  scan_id: string | null;
+  source_bin_id: string | null;
+  destination_bin_id: string | null;
+  quantity: number;
+  unit: string;
+  affected_category: string | null;
+  payload: Record<string, unknown>;
+  idempotency_key: string | null;
+  is_demo: boolean;
   timestamp: string;
-  metadata?: Record<string, unknown>;
 }
-
 export interface EventHistoryResponse {
-  events: EventItem[];
+  items: EventItem[];
+  next_cursor: string | null;
   total_count: number;
 }
 
-/**
- * GET /api/recommendations
- */
+/** GET /api/recommendations returns an array; generate returns one item. */
 export interface RecommendationItem {
-  recommendation_id: string;
+  id: string;
   title: string;
-  description: string;
-  severity: "low" | "medium" | "high" | "critical";
-  action_type: "reroute" | "empty_bin" | "material_reuse" | "maintenance" | string;
+  recommendation_text: string;
+  generation_method: string;
+  supporting_data: Record<string, unknown>;
+  status: string;
+  is_demo: boolean;
   created_at: string;
+  updated_at: string;
 }
+export type RecommendationsResponse = RecommendationItem[];
+export interface GenerateRecommendationsRequest { force_refresh?: boolean }
 
-export interface RecommendationsResponse {
-  recommendations: RecommendationItem[];
-  generated_at: string;
-  based_on_snapshot_id?: string;
-}
-
-/**
- * POST /api/recommendations/generate
- */
-export interface GenerateRecommendationsRequest {
-  focus_category?: RecyclingCategory;
-  include_historical_events?: boolean;
-}
-
-/**
- * WS /api/live
- * WebSocket message envelope for live streaming events between phone scanner, backend, and dashboard.
- */
-export type WebSocketEventType =
-  | "item_scanned"
-  | "item_confirmed"
-  | "bin_capacity_updated"
-  | "recommendation_added"
-  | "ping"
-  | "pong";
-
+/** WebSocket endpoint /ws sends a snapshot envelope and material event envelopes. */
 export interface WebSocketLiveMessage<T = unknown> {
-  type: WebSocketEventType;
-  payload: T;
-  timestamp: string;
+  type: "snapshot" | "material_confirmed" | "material_routed" | string;
+  data: T;
 }

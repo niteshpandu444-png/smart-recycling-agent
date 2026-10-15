@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import {
-  RecyclingCategory,
+  MaterialCategory,
   ScanClassificationResponse,
   ScanConfirmationRequest,
 } from "@/types/api";
@@ -33,45 +33,100 @@ interface ClassificationCardProps {
 }
 
 const CATEGORY_STYLES: Record<
-  RecyclingCategory,
+  MaterialCategory,
   { label: string; bg: string; text: string; border: string; description: string }
 > = {
-  recyclable: {
-    label: "Recyclable",
+  plastic: {
+    label: "Plastic",
     bg: "bg-emerald-50 dark:bg-emerald-950/40",
     text: "text-emerald-700 dark:text-emerald-300",
     border: "border-emerald-200 dark:border-emerald-800",
-    description: "Plastics, paper, cardboard, glass, and clean metals",
+    description: "Plastic material",
   },
-  reusable: {
-    label: "Reusable",
+  paper: {
+    label: "Paper",
     bg: "bg-sky-50 dark:bg-sky-950/40",
     text: "text-sky-700 dark:text-sky-300",
     border: "border-sky-200 dark:border-sky-800",
-    description: "Functional items, containers, refurbishable electronics",
+    description: "Paper or cardboard",
+  },
+  metal: {
+    label: "Metal",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    text: "text-amber-700 dark:text-amber-300",
+    border: "border-amber-200 dark:border-amber-800",
+    description: "Metal material",
+  },
+  glass: {
+    label: "Glass",
+    bg: "bg-rose-50 dark:bg-rose-950/40",
+    text: "text-rose-700 dark:text-rose-300",
+    border: "border-rose-200 dark:border-rose-800",
+    description: "Glass material",
+  },
+  organic: {
+    label: "Organic",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    text: "text-amber-700 dark:text-amber-300",
+    border: "border-amber-200 dark:border-amber-800",
+    description: "Organic material",
   },
   biodegradable: {
     label: "Biodegradable",
     bg: "bg-amber-50 dark:bg-amber-950/40",
     text: "text-amber-700 dark:text-amber-300",
     border: "border-amber-200 dark:border-amber-800",
-    description: "Compostable organic matter, food scraps, plant fiber",
+    description: "Biodegradable material",
+  },
+  compostable: {
+    label: "Compostable",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    text: "text-amber-700 dark:text-amber-300",
+    border: "border-amber-200 dark:border-amber-800",
+    description: "Compostable material",
+  },
+  holding: {
+    label: "Holding / Review",
+    bg: "bg-slate-100 dark:bg-slate-800",
+    text: "text-slate-700 dark:text-slate-300",
+    border: "border-slate-300 dark:border-slate-700",
+    description: "Hold for manual routing review",
   },
   hazardous: {
-    label: "Hazardous Waste",
+    label: "Hazardous",
     bg: "bg-rose-50 dark:bg-rose-950/40",
     text: "text-rose-700 dark:text-rose-300",
     border: "border-rose-200 dark:border-rose-800",
-    description: "Batteries, electronic waste, toxic chemicals, bulbs",
+    description: "Use an authorized hazardous-waste route",
+  },
+  reusable: {
+    label: "Reusable",
+    bg: "bg-sky-50 dark:bg-sky-950/40",
+    text: "text-sky-700 dark:text-sky-300",
+    border: "border-sky-200 dark:border-sky-800",
+    description: "Only when item condition and use are verified",
   },
 };
 
-const ALL_CATEGORIES: RecyclingCategory[] = [
-  "recyclable",
-  "reusable",
-  "biodegradable",
-  "hazardous",
+const ALL_CATEGORIES: MaterialCategory[] = [
+  "plastic", "paper", "metal", "glass", "organic", "biodegradable",
+  "compostable", "holding", "hazardous", "reusable",
 ];
+
+function initialMaterialCategory(item: string | null): MaterialCategory | null {
+  if (!item) return null;
+  const itemCategory: Record<string, MaterialCategory> = {
+    Battery: "hazardous",
+    "Biological waste": "organic",
+    Cardboard: "paper",
+    Glass: "glass",
+    Metal: "metal",
+    Paper: "paper",
+    Plastic: "plastic",
+    Trash: "holding",
+  };
+  return itemCategory[item] ?? null;
+}
 
 export const ClassificationCard: React.FC<ClassificationCardProps> = ({
   scanResult,
@@ -85,13 +140,11 @@ export const ClassificationCard: React.FC<ClassificationCardProps> = ({
 }) => {
   // Editable fields for user verification/overrides
   const [isEditing, setIsEditing] = useState(false);
-  const [confirmedItem, setConfirmedItem] = useState(scanResult.predicted_item);
-  const [confirmedCategory, setConfirmedCategory] = useState<RecyclingCategory>(
-    scanResult.predicted_category
+  const [confirmedItem, setConfirmedItem] = useState(scanResult.predicted_item ?? "");
+  const [confirmedCategory, setConfirmedCategory] = useState<MaterialCategory | null>(
+    initialMaterialCategory(scanResult.predicted_item)
   );
-  const [destinationId, setDestinationId] = useState(
-    scanResult.suggested_route || "bin_general_sorting"
-  );
+  const [destinationId, setDestinationId] = useState("");
   const [destinationError, setDestinationError] = useState<string | null>(null);
 
   // Thumbnail rendering & cleanup
@@ -121,34 +174,44 @@ export const ClassificationCard: React.FC<ClassificationCardProps> = ({
   }, [confirmedItem, confirmedCategory, destinationId]);
 
   const hasModifications =
-    confirmedItem !== scanResult.predicted_item ||
-    confirmedCategory !== scanResult.predicted_category ||
-    destinationId !== (scanResult.suggested_route || "bin_general_sorting");
+    confirmedItem !== (scanResult.predicted_item ?? "") ||
+    confirmedCategory !== initialMaterialCategory(scanResult.predicted_item) || destinationId !== "";
 
   const resetToPredicted = () => {
-    setConfirmedItem(scanResult.predicted_item);
-    setConfirmedCategory(scanResult.predicted_category);
-    setDestinationId(scanResult.suggested_route || "bin_general_sorting");
+    setConfirmedItem(scanResult.predicted_item ?? "");
+    setConfirmedCategory(initialMaterialCategory(scanResult.predicted_item));
+    setDestinationId("");
     setDestinationError(null);
   };
 
-  const categoryTheme =
-    CATEGORY_STYLES[confirmedCategory] || CATEGORY_STYLES.recyclable;
+  const categoryTheme = confirmedCategory ? CATEGORY_STYLES[confirmedCategory] : {
+    label: "Needs review",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    text: "text-amber-700 dark:text-amber-300",
+    border: "border-amber-200 dark:border-amber-800",
+    description: "Choose a material category before confirmation",
+  };
 
   const handleConfirmClick = async () => {
-    const trimmedItem = confirmedItem.trim() || scanResult.predicted_item;
+    const trimmedItem = confirmedItem.trim();
     const trimmedDestination = destinationId.trim();
 
-    if (!trimmedDestination) {
-      setDestinationError("Destination ID cannot be empty. Please specify a target sorting bin.");
+    if (!confirmedCategory) {
+      setDestinationError("Choose the material-specific category confirmed by your review.");
       return;
     }
     setDestinationError(null);
 
     const payload: ScanConfirmationRequest = {
-      confirmed_item: trimmedItem,
+      scan_id: scanResult.scan_id,
       confirmed_category: confirmedCategory,
-      destination_id: trimmedDestination.slice(0, 64),
+      ...(trimmedDestination ? { destination_bin_id: trimmedDestination.slice(0, 64) } : {}),
+      ...(trimmedItem ? { description: trimmedItem.slice(0, 128) } : {}),
+      confirmation_source:
+        confirmedCategory === initialMaterialCategory(scanResult.predicted_item) &&
+        trimmedItem === (scanResult.predicted_item ?? "")
+        ? "model_accepted"
+        : "user_corrected",
       idempotency_key: activeKey,
     };
 
@@ -340,7 +403,7 @@ export const ClassificationCard: React.FC<ClassificationCardProps> = ({
                 htmlFor="destination-input"
                 className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block"
               >
-                Destination Route / Bin ID (Max 64 chars):
+                Optional Destination Bin ID (Max 64 chars):
               </label>
               <input
                 id="destination-input"
@@ -356,7 +419,7 @@ export const ClassificationCard: React.FC<ClassificationCardProps> = ({
                     ? "border-red-500 focus:ring-red-500"
                     : "border-slate-300 dark:border-slate-600"
                 }`}
-                placeholder="Destination Bin ID (Required)"
+                placeholder="Optional destination bin ID"
                 aria-label="Destination Route or Bin ID input"
               />
               {destinationError && (
@@ -369,7 +432,7 @@ export const ClassificationCard: React.FC<ClassificationCardProps> = ({
         ) : (
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              {confirmedItem}
+              {confirmedItem || "Uncertain item"}
             </h2>
             {hasModifications && (
               <span className="inline-block mt-0.5 text-[10px] font-semibold text-brand-600 dark:text-brand-400">
@@ -386,7 +449,7 @@ export const ClassificationCard: React.FC<ClassificationCardProps> = ({
           <MapPin className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" />
           <span>Routing:</span>
           <span className="text-brand-700 dark:text-brand-300 font-mono">
-            {destinationId || "Unassigned"}
+            {destinationId || scanResult.suggested_route || "Backend routing rules"}
           </span>
         </div>
 
@@ -454,7 +517,7 @@ export const ClassificationCard: React.FC<ClassificationCardProps> = ({
         <button
           type="button"
           onClick={handleConfirmClick}
-          disabled={isConfirming}
+          disabled={isConfirming || !confirmedCategory}
           className="flex-[2] min-h-[44px] py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 transition-all shadow-md"
           aria-label="Confirm item and commit to Digital Twin"
         >
