@@ -229,7 +229,7 @@ EventListResponse = _get_or_default("EventListResponse", _DefaultEventListRespon
 
 
 class _DefaultEventReversalRequest(BaseModel):
-    event_id: str
+    event_id: Optional[str] = None
     reason: Optional[str] = None
 
 EventReversalRequest = _get_or_default("EventReversalRequest", _DefaultEventReversalRequest)
