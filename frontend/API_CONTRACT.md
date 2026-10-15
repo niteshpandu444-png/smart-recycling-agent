@@ -1,8 +1,15 @@
 # Smart Recycling Agent — Shared API Contract
 
-**Version:** 1.0.0  
-**Status:** Canonical Reference  
-**Roles Involved:** Frontend Lead (Mobile Scanner), Dashboard Developer (Digital Twin), Backend Developer (FastAPI)
+**Status:** PROPOSED (Pending Backend Approval)  
+**Version:** 1.0.0-draft  
+**Stakeholders:** Frontend Lead (Mobile Scanner), Dashboard Developer (Digital Twin), Backend Developer (FastAPI)
+
+> [!IMPORTANT]
+> **Open Questions for Backend Developer:**
+> 1. **Inference Latency & Cold Starts:** What is the expected response latency for `POST /api/scans` (vision model inference)? Frontend client timeout is configured to 30s.
+> 2. **Destination Registry:** Will the backend supply a predefined list of destination bins (e.g. `GET /api/twin/bins`), or should the client continue sending text identifiers validated server-side?
+> 3. **Idempotency Expiration:** What is the retention policy/TTL for client-submitted `idempotency_key` records?
+> 4. **WebSocket Heartbeats:** Does `WS /api/live` use application-level ping/pong frames or native protocol ping frames?
 
 ---
 

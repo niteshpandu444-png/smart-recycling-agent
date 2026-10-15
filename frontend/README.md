@@ -28,7 +28,7 @@ frontend/
 │   └── types/
 │       └── api.ts              # Canonical TypeScript interfaces for both scanner & dashboard
 ├── .env.example                # Environment variables documentation
-├── API_CONTRACT.md             # Shared backend & dashboard API contract
+├── API_CONTRACT.md             # Shared backend & dashboard API contract (PROPOSED)
 ├── package.json
 ├── tailwind.config.ts
 └── tsconfig.json
@@ -36,53 +36,67 @@ frontend/
 
 ---
 
-## Getting Started
+## Setup
 
 ### 1. Installation
+Install project dependencies:
 ```bash
 npm install
 ```
 
-### 2. Configure Environment
-Copy `.env.example` to `.env.local`:
-```bash
-cp .env.example .env.local
-```
-
-- **Testing locally on laptop:** `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`
-- **Testing from mobile device on local Wi-Fi:** Set `NEXT_PUBLIC_API_BASE_URL=http://<YOUR_LAPTOP_IP>:8000`
-
-### 3. Run Development Server
+### 2. Run Development Server
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) on your desktop or mobile browser.
+Open [http://localhost:3000](http://localhost:3000) on your desktop browser.
 
-### 4. Build & Type Checking
+### 3. Build & Type Checking
 ```bash
 npm run type-check
+npm run lint
 npm run build
 ```
 
 ---
 
-## Mobile Camera & Security Guidelines
+## Environment Variables
 
-- Modern browsers require HTTPS or `localhost` to grant live `getUserMedia` camera streams.
-- When accessing the application over unencrypted local LAN (`http://192.168.x.x:3000`), modern mobile browsers restrict live camera streams for security.
-- The scanner provides an automatic **Photo Upload / Native Camera** fallback (`capture="environment"`), allowing users to snap photos using their mobile phone's native camera even on local HTTP.
-- For live viewfinder streaming over Wi-Fi, use an HTTPS reverse tunnel (e.g. `ngrok` or `local-ssl-proxy`).
+Copy `.env.example` to create your local environment configuration:
+```bash
+cp .env.example .env.local
+```
+
+Configurable variables:
+- `NEXT_PUBLIC_API_BASE_URL`: Base HTTP address for the FastAPI backend (e.g. `http://localhost:8000` or `http://192.168.1.x:8000`).
+- `NEXT_PUBLIC_WS_URL`: WebSocket address for live Digital Twin event streaming (e.g. `ws://localhost:8000/api/live`).
+- `NEXT_PUBLIC_DEV_MODE`: Set to `true` to display developer diagnostics in the UI (such as active idempotency keys). Defaults to `false`.
+
+---
+
+## Phone Testing over HTTPS & Local Network
+
+When testing the mobile scanner on a physical phone:
+
+1. **Local Area Network (LAN) Connectivity:**
+   - A mobile phone browsing the application over local Wi-Fi **cannot** use `localhost` to reach the laptop backend (`localhost` on the phone refers to the phone itself).
+   - Set `NEXT_PUBLIC_API_BASE_URL=http://<YOUR_LAPTOP_LAN_IP>:8000` in `.env.local` or point to a deployed backend.
+
+2. **HTTPS Requirement for Live Camera Stream:**
+   - Modern mobile browsers require a secure context (HTTPS) to grant native live camera stream permissions (`getUserMedia`).
+   - To test live camera streaming on a physical phone, access the application through an HTTPS tunnel (e.g., `ngrok`, `local-ssl-proxy`, or `mkcert`) or a deployed HTTPS backend.
+
+3. **Image Upload & Camera Fallback:**
+   - When running over unencrypted HTTP LAN without HTTPS, the scanner provides an automatic **Photo Upload / Native Camera** fallback (`<input type="file" capture="environment" />`). This allows capturing photos directly with the phone camera without needing WebRTC HTTPS permissions.
 
 ---
 
 ## API Contract & Shared Types
 
-Refer to [API_CONTRACT.md](file:///c:/Users/chint/OneDrive/Desktop/FROUNT%20END/frontend/API_CONTRACT.md) for endpoint contracts, request/response formats, error codes, and WebSocket schemas. Shared TypeScript models are in [src/types/api.ts](file:///c:/Users/chint/OneDrive/Desktop/FROUNT%20END/frontend/src/types/api.ts).
+Refer to [API_CONTRACT.md](file:///c:/Users/chint/OneDrive/Desktop/FROUNT%20END/frontend/API_CONTRACT.md) for the proposed endpoint contracts, request/response formats, error codes, and WebSocket schemas. Shared TypeScript models are in [src/types/api.ts](file:///c:/Users/chint/OneDrive/Desktop/FROUNT%20END/frontend/src/types/api.ts).
 
 ---
 
 ## Known Limitations
 
-- **Backend Integration:** The frontend application has been developed and strictly type-verified against agreed API contracts and schemas, but has not yet been tested against a live running backend server or active ML inference service.
-- **Physical Phone Camera over HTTPS:** Live viewfinder camera streaming (`getUserMedia`) has been verified in local browser testing, but has not yet been tested on a physical mobile device over a secure HTTPS connection. The mobile file upload and native camera capture fallback (`capture="environment"`) remain available for physical device testing over unencrypted HTTP LAN.
-
+- **Untested Against Real Backend:** The frontend application has been developed and strictly type-verified against agreed API contracts and schemas, but nothing has been tested against a real running backend server or active ML inference service.
+- **Camera Untested on Physical Phone over HTTPS:** Live viewfinder camera streaming (`getUserMedia`) has been verified in local browser testing, but the camera has not been tested on a physical phone over an HTTPS connection. The mobile file upload and native camera capture fallback (`capture="environment"`) remain available for physical device testing over unencrypted HTTP LAN.
