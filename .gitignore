@@ -5,6 +5,11 @@ __pycache__/
 venv/
 .pytest_cache/
 .coverage
+.cache/
+.tmp/
+backend/.cache/
+backend/models/
+backend/models/*.part
 
 # Environment variables and secrets
 .env
@@ -16,6 +21,11 @@ venv/
 *.pth
 *.onnx
 *.safetensors
+*.bin
+*.h5
+*.keras
+*.model
+*.onnx_data
 backend/uploads/
 
 # Databases
@@ -34,3 +44,6 @@ build/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local computer-vision test images
+backend/test_images/
