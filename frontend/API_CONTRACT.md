@@ -158,6 +158,9 @@ Submits verified or edited classification details to commit the item to the Digi
 > [!NOTE]
 > If a request with an existing `idempotency_key` is received, the backend must return the previously confirmed record with `"status": "duplicate"` and HTTP 200 without double-incrementing inventory.
 
+> [!IMPORTANT]
+> **Destination Validation Requirement:** The backend must strictly validate `destination_id`. It must be non-empty, trimmed, limited to a maximum length of 64 characters, and mapped against valid registered facility bins. If the identifier is unrecognized or malformed, the backend must return HTTP `422 Unprocessable Entity` or `400 Bad Request`.
+
 ---
 
 ### 5.3 Digital Twin Snapshot

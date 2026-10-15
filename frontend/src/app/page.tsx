@@ -177,8 +177,9 @@ export default function MobileScannerPage() {
 
         {/* Backend Connectivity Status Pill */}
         <button
+          type="button"
           onClick={checkHealth}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+          className={`min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border transition-colors ${
             backendStatus === "online"
               ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
               : backendStatus === "checking"
@@ -186,22 +187,23 @@ export default function MobileScannerPage() {
               : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800"
           }`}
           title={`Backend: ${getApiBaseUrl()}`}
+          aria-label="Check backend connection status"
         >
           {backendStatus === "online" && (
             <>
-              <Wifi className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <Wifi className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Backend Ready</span>
             </>
           )}
           {backendStatus === "checking" && (
             <>
-              <RefreshCw className="w-3 h-3 animate-spin text-slate-400" />
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-400" />
               <span>Connecting...</span>
             </>
           )}
           {backendStatus === "offline" && (
             <>
-              <WifiOff className="w-3 h-3 text-rose-500" />
+              <WifiOff className="w-3.5 h-3.5 text-rose-500" />
               <span>Backend Offline</span>
             </>
           )}
@@ -214,25 +216,27 @@ export default function MobileScannerPage() {
           <button
             type="button"
             onClick={() => setCurrentState("CAMERA")}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+            className={`flex-1 min-h-[44px] py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
               currentState === "CAMERA"
                 ? "bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
             }`}
+            aria-label="Switch to live camera viewfinder"
           >
-            <Camera className="w-3.5 h-3.5" />
+            <Camera className="w-4 h-4" />
             Live Viewfinder
           </button>
           <button
             type="button"
             onClick={() => setCurrentState("UPLOAD")}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+            className={`flex-1 min-h-[44px] py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
               currentState === "UPLOAD"
                 ? "bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
             }`}
+            aria-label="Switch to photo upload"
           >
-            <Upload className="w-3.5 h-3.5" />
+            <Upload className="w-4 h-4" />
             Photo Upload
           </button>
         </div>
@@ -240,7 +244,11 @@ export default function MobileScannerPage() {
 
       {/* Global Error Banner for states other than preview */}
       {scanError && currentState !== "PREVIEW" && (
-        <div className="w-full max-w-md mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 text-xs flex items-start gap-2.5">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="w-full max-w-md mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 text-xs flex items-start gap-2.5"
+        >
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
           <div className="flex-1">
             <p className="font-semibold">Classification Error</p>

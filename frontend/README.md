@@ -78,3 +78,11 @@ npm run build
 ## API Contract & Shared Types
 
 Refer to [API_CONTRACT.md](file:///c:/Users/chint/OneDrive/Desktop/FROUNT%20END/frontend/API_CONTRACT.md) for endpoint contracts, request/response formats, error codes, and WebSocket schemas. Shared TypeScript models are in [src/types/api.ts](file:///c:/Users/chint/OneDrive/Desktop/FROUNT%20END/frontend/src/types/api.ts).
+
+---
+
+## Known Limitations
+
+- **Backend Integration:** The frontend application has been developed and strictly type-verified against agreed API contracts and schemas, but has not yet been tested against a live running backend server or active ML inference service.
+- **Physical Phone Camera over HTTPS:** Live viewfinder camera streaming (`getUserMedia`) has been verified in local browser testing, but has not yet been tested on a physical mobile device over a secure HTTPS connection. The mobile file upload and native camera capture fallback (`capture="environment"`) remain available for physical device testing over unencrypted HTTP LAN.
+

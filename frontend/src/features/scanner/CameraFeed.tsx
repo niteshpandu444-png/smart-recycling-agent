@@ -15,7 +15,6 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
   onFallbackToUpload,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -29,13 +28,15 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
   // Check if we are in a secure context (required by modern mobile browsers)
   const isSecure = typeof window !== "undefined" ? window.isSecureContext : true;
 
+  const streamRef = useRef<MediaStream | null>(null);
+
   // Stop active video stream tracks
   const stopStream = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
-  }, [stream]);
+  }, []);
 
   // Check for multiple video input devices
   const checkDevices = useCallback(async () => {
@@ -73,8 +74,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
     }
 
     try {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
 
       const newStream = await navigator.mediaDevices.getUserMedia({
@@ -86,7 +88,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
         audio: false,
       });
 
-      setStream(newStream);
+      streamRef.current = newStream;
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
         await videoRef.current.play().catch(() => {});
@@ -108,17 +110,17 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
     } finally {
       setIsInitializing(false);
     }
-  }, [facingMode, isGetUserMediaSupported, isSecure, stream, checkDevices, onError]);
+  }, [facingMode, isGetUserMediaSupported, isSecure, checkDevices, onError]);
 
   useEffect(() => {
     startCamera();
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facingMode]);
+  }, [startCamera]);
 
   // Flip between rear and front cameras
   const toggleFacingMode = () => {
@@ -167,7 +169,11 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
         )}
 
         {cameraError ? (
-          <div className="p-6 text-center text-slate-200 z-10 flex flex-col items-center max-w-xs">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="p-6 text-center text-slate-200 z-10 flex flex-col items-center max-w-xs"
+          >
             <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center mb-3">
               <AlertCircle className="w-6 h-6" />
             </div>
@@ -175,14 +181,18 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
             <p className="text-xs text-slate-400 mb-4">{cameraError}</p>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={startCamera}
-                className="px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 active:scale-95 transition-all"
+                className="min-h-[44px] px-4 py-2.5 text-xs font-medium rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 active:scale-95 transition-all"
+                aria-label="Retry camera initialization"
               >
                 Retry
               </button>
               <button
+                type="button"
                 onClick={onFallbackToUpload}
-                className="px-3 py-2 text-xs font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-500 active:scale-95 transition-all flex items-center gap-1.5"
+                className="min-h-[44px] px-4 py-2.5 text-xs font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-500 active:scale-95 transition-all flex items-center gap-1.5"
+                aria-label="Switch to photo upload"
               >
                 <Upload className="w-3.5 h-3.5" />
                 Upload Photo
@@ -225,8 +235,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
         <button
           type="button"
           onClick={onFallbackToUpload}
-          className="flex flex-col items-center justify-center w-12 h-12 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+          className="min-h-[44px] min-w-[44px] flex flex-col items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           title="Upload from device"
+          aria-label="Switch to file upload"
         >
           <Upload className="w-5 h-5" />
           <span className="text-[10px] mt-0.5 font-medium">Upload</span>
@@ -237,7 +248,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
           type="button"
           onClick={captureFrame}
           disabled={Boolean(cameraError) || isInitializing}
-          className="relative flex items-center justify-center w-16 h-16 rounded-full bg-white text-brand-700 shadow-lg active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all group"
+          className="relative min-h-[44px] min-w-[44px] flex items-center justify-center w-16 h-16 rounded-full bg-white text-brand-700 shadow-lg active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all group"
           aria-label="Capture item photograph"
         >
           <span className="absolute inset-1 rounded-full border-2 border-slate-300 group-hover:border-brand-500 transition-colors" />
@@ -249,8 +260,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
           type="button"
           onClick={toggleFacingMode}
           disabled={!hasMultipleCameras && Boolean(cameraError)}
-          className="flex flex-col items-center justify-center w-12 h-12 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-30"
+          className="min-h-[44px] min-w-[44px] flex flex-col items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-30"
           title="Flip camera"
+          aria-label="Flip camera direction"
         >
           <SwitchCamera className="w-5 h-5" />
           <span className="text-[10px] mt-0.5 font-medium">Flip</span>

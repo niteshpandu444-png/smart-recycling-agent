@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { Sparkles, RotateCcw, AlertTriangle, RefreshCw } from "lucide-react";
 
 interface ImagePreviewProps {
@@ -39,11 +40,12 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
       {/* Image Preview Box */}
       <div className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden bg-slate-950 shadow-md border border-slate-200 dark:border-slate-800">
         {previewUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={previewUrl}
             alt="Captured waste sample"
-            className="w-full h-full object-cover"
+            fill
+            unoptimized
+            className="object-cover"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -61,7 +63,11 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
 
       {/* Advisory Note or Error Banner */}
       {errorMessage ? (
-        <div className="mt-3 w-full flex items-start gap-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-2.5 rounded-xl text-red-700 dark:text-red-300 text-xs">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="mt-3 w-full flex items-start gap-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-2.5 rounded-xl text-red-700 dark:text-red-300 text-xs"
+        >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
           <div className="flex-1">
             <p className="font-semibold">Analysis Failed</p>
@@ -69,7 +75,10 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
           </div>
         </div>
       ) : (
-        <div className="mt-3 w-full flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 text-xs">
+        <div
+          role="note"
+          className="mt-3 w-full flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 text-xs"
+        >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <p>Ensure the item is visible and clearly lit for accurate computer vision classification.</p>
         </div>
@@ -81,7 +90,8 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
           type="button"
           onClick={onRetake}
           disabled={isSubmitting}
-          className="flex-1 py-3 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 transition-all shadow-sm"
+          className="flex-1 min-h-[44px] py-3 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 transition-all shadow-sm"
+          aria-label="Retake waste photograph"
         >
           <RotateCcw className="w-4 h-4" />
           Retake Photo
@@ -91,7 +101,8 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
           type="button"
           onClick={onSubmit}
           disabled={isSubmitting}
-          className="flex-1 py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 transition-all shadow-md"
+          className="flex-1 min-h-[44px] py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 transition-all shadow-md"
+          aria-label={errorMessage ? "Retry waste analysis" : "Analyze waste photograph"}
         >
           {errorMessage ? (
             <>

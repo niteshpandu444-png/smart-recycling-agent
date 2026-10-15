@@ -55,13 +55,23 @@ export function getApiBaseUrl(): string {
 }
 
 /**
- * Generates an RFC4122 v4 UUID or secure fallback string for idempotency keys.
+ * Generates an RFC4122 v4 UUID using crypto.randomUUID or crypto.getRandomValues.
  */
 export function generateIdempotencyKey(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+  if (typeof crypto !== "undefined") {
+    if (typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    if (typeof crypto.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      // RFC4122 version 4 and variant 10xx bits
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
   }
-  // Safe fallback if crypto.randomUUID is not supported in environment
   return "idemp-" + Date.now() + "-" + Math.random().toString(36).substring(2, 11);
 }
 

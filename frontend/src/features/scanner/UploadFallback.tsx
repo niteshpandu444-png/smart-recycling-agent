@@ -75,6 +75,7 @@ export const UploadFallback: React.FC<UploadFallbackProps> = ({
         accept="image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={handleFileChange}
+        aria-label="Upload image from file picker"
       />
       {/* Native device camera prompt (works reliably over HTTP LAN on iOS & Android) */}
       <input
@@ -84,6 +85,7 @@ export const UploadFallback: React.FC<UploadFallbackProps> = ({
         capture="environment"
         className="hidden"
         onChange={handleFileChange}
+        aria-label="Capture photo with mobile camera"
       />
 
       {/* Main Drag-and-Drop Area */}
@@ -93,6 +95,15 @@ export const UploadFallback: React.FC<UploadFallbackProps> = ({
         onDragOver={handleDrag}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        aria-label="Upload area: click to select or drop an image here"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
         className={`relative w-full aspect-[4/5] rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center p-6 text-center cursor-pointer ${
           dragActive
             ? "border-brand-500 bg-brand-50/80 dark:bg-brand-950/40"
@@ -118,7 +129,8 @@ export const UploadFallback: React.FC<UploadFallbackProps> = ({
               e.stopPropagation();
               cameraInputRef.current?.click();
             }}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-sm active:scale-98 transition-all"
+            className="flex-1 min-h-[44px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-sm active:scale-98 transition-all"
+            aria-label="Take photo with device camera"
           >
             <Camera className="w-4 h-4" />
             Take Photo
@@ -131,7 +143,8 @@ export const UploadFallback: React.FC<UploadFallbackProps> = ({
               e.stopPropagation();
               fileInputRef.current?.click();
             }}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold active:scale-98 transition-all"
+            className="flex-1 min-h-[44px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold active:scale-98 transition-all"
+            aria-label="Browse device photo library"
           >
             <ImageIcon className="w-4 h-4" />
             Browse
@@ -140,7 +153,11 @@ export const UploadFallback: React.FC<UploadFallbackProps> = ({
       </div>
 
       {uploadError && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 p-2.5 rounded-xl border border-red-200 dark:border-red-900/50 w-full">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="mt-3 flex items-center gap-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 p-2.5 rounded-xl border border-red-200 dark:border-red-900/50 w-full"
+        >
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{uploadError}</span>
         </div>
@@ -151,7 +168,8 @@ export const UploadFallback: React.FC<UploadFallbackProps> = ({
         <button
           type="button"
           onClick={onSwitchToLiveCamera}
-          className="mt-4 flex items-center gap-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline"
+          className="mt-4 min-h-[44px] px-3 flex items-center gap-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline"
+          aria-label="Switch back to live camera viewfinder"
         >
           <Camera className="w-3.5 h-3.5" />
           Switch to Live Camera Viewfinder
