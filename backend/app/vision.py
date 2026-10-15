@@ -96,6 +96,9 @@ class VisionPrediction:
     suggested_route: str
     explanation: str
     classification_status: str
+    model_class: str | None = None
+    top_k_predictions: tuple[tuple[str, float], ...] = ()
+    margin: float | None = None
 
 
 @dataclass(frozen=True)
@@ -295,6 +298,10 @@ class VisionClassifier:
         score = float(scores[class_index])
         margin = score - float(scores[int(order[-2])])
         class_name = CLASS_NAMES[class_index]
+        top_k_predictions = tuple(
+            (CLASS_NAMES[int(candidate_index)], float(scores[int(candidate_index)]))
+            for candidate_index in order[-2:][::-1]
+        )
         uncertain = (
             class_name not in CLASS_POLICIES
             or score < SCORE_THRESHOLD
@@ -313,6 +320,9 @@ class VisionClassifier:
                     "This model has no dedicated electronic-waste class and cannot verify local acceptance or item condition."
                 ),
                 classification_status="uncertain",
+                model_class=class_name,
+                top_k_predictions=top_k_predictions,
+                margin=margin,
             )
 
         item, category, route = CLASS_POLICIES[class_name]
@@ -328,6 +338,9 @@ class VisionClassifier:
                 "electronic-waste class and cannot verify local acceptance, contamination, or item condition."
             ),
             classification_status="success",
+            model_class=class_name,
+            top_k_predictions=top_k_predictions,
+            margin=margin,
         )
 
 

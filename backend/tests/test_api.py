@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from backend.app.database import get_db
 from backend.app.main import app
+from backend.app.models import Scan, VirtualBin
 from backend.app.schemas import ClassificationResponse
 from backend.app.vision import (
     CLASS_NAMES,
@@ -40,6 +42,9 @@ def success_prediction() -> VisionPrediction:
         suggested_route="Check local acceptance and preparation rules.",
         explanation="Visual candidate only; score is not calibrated.",
         classification_status="success",
+        model_class="plastic",
+        top_k_predictions=(("plastic", 0.71), ("trash", 0.12)),
+        margin=0.59,
     )
 
 
@@ -74,6 +79,16 @@ def vision_ready(monkeypatch):
     monkeypatch.setattr(classifier, "_session_info", _SessionInfo(object(), "x", "y", (1, 3, 224, 224)))
     monkeypatch.setattr(classifier, "_diagnostic_status", "ready")
     monkeypatch.setattr(classifier, "predict", lambda _image: success_prediction())
+
+
+@pytest.fixture(autouse=True)
+def use_isolated_main_database(test_db):
+    def override_get_db():
+        yield test_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    app.dependency_overrides.pop(get_db, None)
 
 
 class FakeOrt:
@@ -236,7 +251,7 @@ async def test_model_status_reports_unavailable_safely(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_valid_upload_uses_classifier_and_returns_contract(vision_ready):
+async def test_valid_upload_uses_classifier_and_returns_contract(vision_ready, test_db):
     result = await api_request(
         "POST", "/api/scans", files={"file": ("ignored-name.jpg", jpeg_bytes(), "text/plain")}
     )
@@ -246,6 +261,10 @@ async def test_valid_upload_uses_classifier_and_returns_contract(vision_ready):
     assert validated.predicted_category == "recyclable"
     assert validated.scan_id
     assert validated.model_identifier == classifier.model_identifier
+    record = test_db.query(Scan).filter(Scan.id == str(validated.scan_id)).one()
+    assert record.predicted_category == "plastic"
+    assert record.confidence == validated.match_score
+    assert test_db.query(VirtualBin).filter(VirtualBin.id == "bin-plastic").one().current_inventory == 0
 
 
 @pytest.mark.anyio
@@ -277,8 +296,19 @@ async def test_oversized_upload_is_rejected(vision_ready):
 
 
 @pytest.mark.anyio
-async def test_uncertain_prediction_has_null_category_and_requests_review(vision_ready, monkeypatch):
-    uncertain = VisionPrediction(None, None, 0.24, True, "Please have the item reviewed.", "Threshold not met.", "uncertain")
+async def test_uncertain_prediction_has_null_category_and_requests_review(vision_ready, monkeypatch, test_db):
+    uncertain = VisionPrediction(
+        None,
+        None,
+        0.24,
+        True,
+        "Please have the item reviewed.",
+        "Threshold not met.",
+        "uncertain",
+        model_class="trash",
+        top_k_predictions=(("trash", 0.24), ("glass", 0.22)),
+        margin=0.02,
+    )
     monkeypatch.setattr(classifier, "predict", lambda _image: uncertain)
     result = await api_request("POST", "/api/scans", files={"file": ("image.jpg", jpeg_bytes(), "image/jpeg")})
     assert result.status_code == 200
@@ -287,6 +317,8 @@ async def test_uncertain_prediction_has_null_category_and_requests_review(vision
     assert body.predicted_category is None
     assert body.predicted_item is None
     assert body.manual_review_recommended is True
+    record = test_db.query(Scan).filter(Scan.id == str(body.scan_id)).one()
+    assert record.review_status == "needs_review"
 
 
 @pytest.mark.anyio

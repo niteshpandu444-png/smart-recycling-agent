@@ -1,9 +1,9 @@
 # Smart Recycling Agent Vision API
 
-This service classifies an uploaded image and returns a transient scan result.
-It does not persist scans, create inventory records, confirm a user correction,
-route materials through a Digital Twin, or make local-facility acceptance
-decisions.
+This service classifies an uploaded image and persists its prediction as a
+`Scan` so the user can confirm or correct it later. Prediction alone does not
+create a material entry or change Digital Twin inventory. Confirmed entries,
+events, and bin state use the teammate's shared SQLAlchemy models and services.
 
 ## API contract
 
@@ -12,14 +12,33 @@ decisions.
 - `GET /api/model/status` returns initialization state, model identifier,
   inference availability, and a safe diagnostic status.
 - `POST /api/scans` accepts `multipart/form-data` with one image field named
-  `file` and returns `ClassificationResponse` defined in `app/schemas.py`.
+  `file`, commits its `Scan` record, and returns `ClassificationResponse`.
+- `POST /api/materials/confirm` confirms or corrects a scan, creates a
+  `MaterialEntry` and `MaterialEvent`, then updates inventory transactionally.
+- The teammate routers are mounted at `/api/twin`, `/api/events`, `/api/bins`,
+  `/api/recommendations`, and `/api/analytics` as well as `/api/materials`.
+- `GET /api/twin/snapshot` reports current persisted bin and event-derived
+  state. `/ws` sends a snapshot on connection and broadcasts post-commit events.
 
-The response `scan_id` identifies this request only; it is not a persisted scan
-or database key. `predicted_item` and `predicted_category` may both be null
-when the model result is uncertain. `match_score` is the model's class score,
-not a calibrated probability. The persistence and frontend clients should
-treat the result as a vision suggestion and allow later correction. No
-confirmation or database operation occurs in this API milestone.
+The response `scan_id` is the UUID primary key of the committed Scan record.
+`predicted_item` and `predicted_category` may both be null when the model result
+is uncertain; that scan is stored with `review_status="needs_review"` and
+remains confirmable. The Scan model stores a material-specific predicted
+category, confidence, model identifier, review state, top model classes, and
+score margin. The response's `classification_status` maps to the persisted
+review state; `suggested_route` and `explanation` remain response-only because
+the teammate's Scan schema has no corresponding fields. `match_score` is the
+model's class score, not a calibrated probability.
+
+The model's material classes are mapped for persistence as follows: battery →
+hazardous; biological → organic; cardboard → paper; glass, metal, paper, and
+plastic retain their material classes; trash → holding. The scan response
+keeps the existing broad application categories. The confirmation endpoint
+uses material-specific categories. Hazardous and reusable categories are
+accepted but route to the existing `bin-holding`; the Digital Twin does not
+currently define a dedicated authorized hazardous-waste or reuse destination.
+The frontend should submit a specific material category when confirming a
+recyclable scan rather than the broad `recyclable` response category.
 
 ## Model and inference
 
@@ -76,6 +95,25 @@ backend/.venv/Scripts/python.exe -m pip install --upgrade pip
 backend/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
 Copy-Item backend/.env.example backend/.env
 ```
+
+The shared persistence layer reads `DATABASE_URL` from the process environment
+and defaults to `sqlite:///./smart_recycling.db`. Application startup calls the
+existing idempotent `init_db()` setup; it creates missing tables and baseline
+bins without dropping existing data. Alembic configuration and the initial
+revision are included for explicit schema migrations. Use an isolated database
+URL for tests; never point tests at a developer database.
+
+The six service routers declare their own `/api/...` prefixes and are mounted
+without additional prefixes. The WebSocket publisher contract is synchronous
+`register_event_listener(listener)` where each listener receives
+`(event_type: str, payload: dict)` after the publisher's transaction commits.
+The app bridges those callbacks onto its event loop, removes the listener on
+shutdown, drops disconnected clients, and sends the current database snapshot
+to clients when they connect or reconnect.
+
+Recommendations use the existing deterministic fallback grounded in the
+current persisted Digital Twin state. This integration adds no external LLM
+provider or credentials.
 
 Start the API from the repository root:
 

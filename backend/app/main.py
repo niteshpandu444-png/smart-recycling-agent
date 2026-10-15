@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import warnings
@@ -9,10 +10,16 @@ from contextlib import asynccontextmanager
 from io import BytesIO
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from PIL import Image, UnidentifiedImageError
+from sqlalchemy.orm import Session
 
+from .adapters.event_publisher import register_event_listener, unregister_event_listener
+from .database import SessionLocal, get_db, init_db
+from .models import Scan
+from .routers import analytics, bins, events, materials, recommendations, twin
+from .services.digital_twin_service import get_digital_twin_snapshot
 from .schemas import ClassificationResponse
 from .vision import classifier
 
@@ -21,21 +28,120 @@ MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 MAX_IMAGE_PIXELS = 40_000_000
 MAX_IMAGE_SIDE = 12_000
 SUPPORTED_FORMATS = {"JPEG", "PNG", "WEBP"}
+PERSISTED_CATEGORY_BY_MODEL_CLASS = {
+    "battery": "hazardous",
+    "biological": "organic",
+    "cardboard": "paper",
+    "glass": "glass",
+    "metal": "metal",
+    "paper": "paper",
+    "plastic": "plastic",
+    "trash": "holding",
+}
+
+
+class WebSocketManager:
+    def __init__(self) -> None:
+        self.connections: set[WebSocket] = set()
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.connections.add(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        self.connections.discard(websocket)
+
+    async def broadcast(self, event: dict) -> None:
+        stale: list[WebSocket] = []
+        for connection in tuple(self.connections):
+            try:
+                await connection.send_json(event)
+            except (WebSocketDisconnect, RuntimeError, OSError):
+                stale.append(connection)
+        for connection in stale:
+            self.disconnect(connection)
+
+    async def close_all(self) -> None:
+        for connection in tuple(self.connections):
+            try:
+                await connection.close(code=1001)
+            except (WebSocketDisconnect, RuntimeError, OSError):
+                pass
+            self.disconnect(connection)
+
+
+websocket_manager = WebSocketManager()
+
+
+def _publish_to_websockets(event_type: str, payload: dict) -> None:
+    loop = getattr(app.state, "websocket_loop", None)
+    if loop is None or not loop.is_running():
+        return
+    try:
+        asyncio.run_coroutine_threadsafe(
+            websocket_manager.broadcast({"type": event_type, "data": payload}),
+            loop,
+        )
+    except RuntimeError:
+        logger.info("WebSocket event skipped because the application loop is stopping")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Use the shared, idempotent database initialization; never reset existing data.
+    init_db()
+    app.state.websocket_loop = asyncio.get_running_loop()
+    register_event_listener(_publish_to_websockets)
     # Load in the background so process health and readiness remain distinct.
     threading.Thread(target=classifier.load, name="vision-model-loader", daemon=True).start()
-    yield
+    try:
+        yield
+    finally:
+        unregister_event_listener(_publish_to_websockets)
+        await websocket_manager.close_all()
+        app.state.websocket_loop = None
 
 
 app = FastAPI(
     title="Smart Recycling Agent Vision API",
     version="1.0.0",
-    description="Transient computer-vision scan API. Scans are not persisted by this service.",
+    description="Computer-vision scans are persisted for user confirmation; inventory changes only on confirmation.",
     lifespan=lifespan,
 )
+
+# Each teammate router already declares its full /api/... prefix.
+for service_router in (
+    materials.router,
+    twin.router,
+    events.router,
+    recommendations.router,
+    bins.router,
+    analytics.router,
+):
+    app.include_router(service_router)
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket) -> None:
+    """Send a database snapshot on connection, then committed material events."""
+    await websocket_manager.connect(websocket)
+    session = SessionLocal()
+    try:
+        snapshot = get_digital_twin_snapshot(session)
+        await websocket.send_json({"type": "snapshot", "data": snapshot.model_dump(mode="json")})
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        logger.warning("WebSocket session ended (%s)", type(exc).__name__)
+        try:
+            await websocket.close(code=1011)
+        except (WebSocketDisconnect, RuntimeError, OSError):
+            pass
+    finally:
+        session.close()
+        websocket_manager.disconnect(websocket)
 
 
 @app.get("/api/health", tags=["health"])
@@ -94,8 +200,12 @@ def _decode_image(data: bytes) -> Image.Image:
 
 
 @app.post("/api/scans", response_model=ClassificationResponse, tags=["scans"])
-async def scan_image(request: Request, file: UploadFile = File(...)) -> ClassificationResponse:
-    """Classify an uploaded image. No scan or inventory record is persisted."""
+async def scan_image(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> ClassificationResponse:
+    """Classify an upload and persist its prediction for later confirmation."""
     try:
         data = await _read_upload(file, request)
         image = _decode_image(data)
@@ -113,8 +223,35 @@ async def scan_image(request: Request, file: UploadFile = File(...)) -> Classifi
     finally:
         image.close()
 
+    if prediction.model_class not in PERSISTED_CATEGORY_BY_MODEL_CLASS or prediction.match_score is None:
+        raise HTTPException(status_code=503, detail="Vision result could not be represented for persistence.")
+
+    scan_id = uuid4()
+    persisted_scan = Scan(
+        id=str(scan_id),
+        image_url=None,
+        predicted_category=PERSISTED_CATEGORY_BY_MODEL_CLASS[prediction.model_class],
+        confidence=prediction.match_score,
+        model_identifier=classifier.model_identifier,
+        review_status=(
+            "needs_review"
+            if prediction.manual_review_recommended or prediction.classification_status == "uncertain"
+            else "pending"
+        ),
+        top_k_predictions=[
+            {"category": name, "score": score}
+            for name, score in prediction.top_k_predictions
+        ],
+        margin=prediction.margin,
+    )
+    try:
+        await run_in_threadpool(_commit_scan, db, persisted_scan)
+    except Exception as exc:
+        logger.error("Scan persistence failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Scan result could not be stored.") from None
+
     return ClassificationResponse(
-        scan_id=uuid4(),
+        scan_id=scan_id,
         predicted_item=prediction.predicted_item,
         predicted_category=prediction.predicted_category,
         match_score=prediction.match_score,
@@ -124,3 +261,12 @@ async def scan_image(request: Request, file: UploadFile = File(...)) -> Classifi
         model_identifier=classifier.model_identifier,
         classification_status=prediction.classification_status,
     )
+
+
+def _commit_scan(db: Session, scan: Scan) -> None:
+    try:
+        db.add(scan)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
