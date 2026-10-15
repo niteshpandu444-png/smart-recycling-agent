@@ -7,12 +7,10 @@ import {
   ScanConfirmationRequest,
 } from "@/types/api";
 import {
-  CheckCircle2,
   AlertTriangle,
   RotateCcw,
   Send,
   Edit2,
-  Info,
   MapPin,
   RefreshCw,
 } from "lucide-react";

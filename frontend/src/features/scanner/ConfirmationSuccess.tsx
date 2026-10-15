@@ -2,7 +2,7 @@
 
 import React from "react";
 import { ScanConfirmationResponse } from "@/types/api";
-import { CheckCircle2, ArrowRight, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ArrowRight } from "lucide-react";
 
 interface ConfirmationSuccessProps {
   confirmation: ScanConfirmationResponse;

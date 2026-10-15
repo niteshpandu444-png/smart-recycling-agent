@@ -159,7 +159,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
       throw new ApiError(fastapiDetail, response.status, "BAD_REQUEST");
     } else if (Array.isArray(fastapiDetail)) {
       // Pydantic validation errors
-      const messages = fastapiDetail.map((d: any) => d.msg || JSON.stringify(d)).join("; ");
+      const messages = fastapiDetail
+        .map((d: unknown) => {
+          if (typeof d === "object" && d !== null && "msg" in d) {
+            const msgVal = (d as { msg: unknown }).msg;
+            if (typeof msgVal === "string") {
+              return msgVal;
+            }
+          }
+          return JSON.stringify(d);
+        })
+        .join("; ");
       throw new ApiError(`Validation error: ${messages}`, response.status, "VALIDATION_ERROR", fastapiDetail);
     }
 

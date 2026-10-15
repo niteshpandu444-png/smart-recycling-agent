@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useId } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { CameraFeed } from "@/features/scanner/CameraFeed";
 import { UploadFallback } from "@/features/scanner/UploadFallback";
 import { ImagePreview } from "@/features/scanner/ImagePreview";
@@ -58,18 +58,15 @@ export default function MobileScannerPage() {
 
   // Backend Health State
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
-  const [backendVersion, setBackendVersion] = useState<string | null>(null);
 
   // Check backend health on mount
   const checkHealth = useCallback(async () => {
     setBackendStatus("checking");
     try {
-      const res = await getHealth();
+      await getHealth();
       setBackendStatus("online");
-      setBackendVersion(res.version);
     } catch {
       setBackendStatus("offline");
-      setBackendVersion(null);
     }
   }, []);
 
