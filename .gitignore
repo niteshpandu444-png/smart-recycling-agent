@@ -44,3 +44,6 @@ build/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local computer-vision test images
+backend/test_images/
