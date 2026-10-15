@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Model weights and generated uploads
+*.pt
+*.pth
+*.onnx
+*.safetensors
+backend/uploads/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Node.js
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# IDE and operating system files
+.vscode/
+.DS_Store
+Thumbs.db
