@@ -6,7 +6,7 @@ import { VirtualBinGrid } from "./VirtualBinGrid";
 import { MaterialFlow } from "./MaterialFlow";
 import { RecentEvents } from "./RecentEvents";
 import { RecommendationPanel } from "./RecommendationPanel";
-import { LeafIcon, AlertTriangleIcon, RefreshIcon } from "./DashboardIcons";
+import { LeafIcon, AlertTriangleIcon } from "./DashboardIcons";
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   metrics,
@@ -22,8 +22,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onGenerateRecommendations,
   isGeneratingRecommendations = false,
 }) => {
-  const isOffline = connectionState === "offline" || connectionState === "unavailable";
-
   return (
     <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-4 sm:px-6 lg:px-8 py-6 safe-top safe-bottom">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -43,7 +41,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Real-Time Material Flow, Capacity Twin Telemetry & AI Sorting Guidance
+                Backend Inventory, Event History & Recommendation State
               </p>
             </div>
           </div>
@@ -103,7 +101,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               isLoading={isLoading}
               onGenerateRecommendations={onGenerateRecommendations}
               isGenerating={isGeneratingRecommendations}
-              canGenerate={!isOffline}
+              canGenerate={connectionState === "connected"}
             />
             <RecentEvents events={events} isLoading={isLoading} />
           </div>
@@ -115,9 +113,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             Smart Recycling Agent • Code Clash 2.0 • Digital Twin Material Flow Protocol
           </p>
           <div className="flex items-center gap-2 font-mono">
-            <span>State Isolation: Phase 1 Complete</span>
+            <span>API Integration Active</span>
             <span>•</span>
-            <span>Ready for Shared Integration</span>
+            <span>Snapshot + /ws</span>
           </div>
         </footer>
       </div>

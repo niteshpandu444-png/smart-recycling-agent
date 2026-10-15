@@ -21,7 +21,15 @@ export type DashboardMaterialCategory =
   | "reusable"
   | "biodegradable"
   | "hazardous"
-  | "unknown";
+  | "plastic"
+  | "paper"
+  | "metal"
+  | "glass"
+  | "organic"
+  | "compostable"
+  | "holding"
+  | "unknown"
+  | string;
 
 /**
  * Visual badge distinction for observed vs calculated vs virtual state.
@@ -142,8 +150,8 @@ export interface DashboardRecommendation {
   id: string;
   title: string;
   description: string;
-  severity: "low" | "medium" | "high" | "critical";
-  actionType: "empty_bin" | "reroute" | "material_reuse" | "maintenance" | string;
+  severity: "low" | "medium" | "high" | "critical" | "unknown";
+  actionType?: "empty_bin" | "reroute" | "material_reuse" | "maintenance" | string;
   createdAt: string;
   /** Generation source: 'llm' | 'deterministic' | 'rule_based' */
   generationMethod?: string;

@@ -47,7 +47,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
           badgeClass: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
           dotClass: "bg-rose-500",
           icon: <WifiOffIcon className="w-3.5 h-3.5 text-rose-500" />,
-          description: "Unable to reach backend services. Showing local cached state.",
+          description: "Unable to reach backend services. Showing the last successfully synced data when available.",
         };
       case "unavailable":
       default:

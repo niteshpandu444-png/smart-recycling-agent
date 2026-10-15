@@ -86,10 +86,10 @@ export const MaterialFlow: React.FC<MaterialFlowProps> = ({ flows = [], isLoadin
           <div className="py-10 text-center">
             <BoxIcon className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
             <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              No Material Movement Recorded Yet
+              No Flow Records Available
             </h3>
             <p className="text-[11px] text-slate-400 max-w-sm mx-auto mt-1">
-              Material flow vectors represent physical routing from mobile scanning confirmation into destination bins. When scans are recorded, active streams will display here.
+              The current snapshot API reports bin inventory, but does not provide routing totals for this flow view.
             </p>
           </div>
         ) : (

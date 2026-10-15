@@ -55,6 +55,10 @@ const STATUS_BADGES: Record<string, { label: string; badgeClass: string }> = {
     label: "Reversed",
     badgeClass: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
   },
+  not_reported: {
+    label: "Status not provided",
+    badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  },
 };
 
 export const RecentEvents: React.FC<RecentEventsProps> = ({ events = [], isLoading = false }) => {
@@ -101,7 +105,10 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events = [], isLoadi
         ) : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-800" role="list">
             {events.map((evt) => {
-              const categoryBadge = CATEGORY_EVENT_BADGES[evt.category] || CATEGORY_EVENT_BADGES.unknown;
+              const categoryBadge = CATEGORY_EVENT_BADGES[evt.category] || {
+                ...CATEGORY_EVENT_BADGES.unknown,
+                label: evt.category,
+              };
               const status = STATUS_BADGES[evt.processingStatus] || {
                 label: evt.processingStatus,
                 badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -127,7 +134,7 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events = [], isLoadi
                       </div>
 
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
-                        <span>Destination: <span className="font-mono text-slate-700 dark:text-slate-300">{evt.destinationName || evt.destinationId}</span></span>
+                        <span>Destination: <span className="font-mono text-slate-700 dark:text-slate-300">{evt.destinationName || evt.destinationId || "Not recorded"}</span></span>
                         <span>•</span>
                         <span>Quantity: <span className="font-mono font-semibold">{evt.quantity} {evt.unit}</span></span>
                       </p>
