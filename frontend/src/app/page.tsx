@@ -103,6 +103,26 @@ export default function MobileScannerPage() {
 
   // Submit image to backend API. A mixed scene goes to the detector pipeline and a
   // single item keeps using the existing whole-image classification endpoint.
+  // Handle instant live detection from continuous camera stream
+  const handleLiveDetected = async (file: File) => {
+    setCapturedFile(file);
+    setCaptureSource("camera");
+    setScanError(null);
+    setCurrentState("ANALYZING");
+    try {
+      // Persist only the frame the user selected. Inventory still requires the
+      // separate explicit confirmation action in ClassificationCard.
+      const result = await submitScan(file);
+      setClassificationResult(result);
+      setActiveIdempotencyKey(generateIdempotencyKey());
+      setCurrentState("CLASSIFIED");
+    } catch (err: unknown) {
+      setScanError(err instanceof ApiError ? err.message : "Failed to classify the selected frame.");
+      setCurrentState("PREVIEW");
+    }
+  };
+
+  // Submit image to backend API
   const handleAnalyzeImage = async () => {
     if (!capturedFile) return;
 
@@ -349,6 +369,7 @@ export default function MobileScannerPage() {
       {currentState === "CAMERA" && (
         <CameraFeed
           onCapture={handleImageCaptured}
+          onLiveConfirm={handleLiveDetected}
           onError={(msg) => console.warn(msg)}
           onFallbackToUpload={() => setCurrentState("UPLOAD")}
           autoCaptureAvailable={isMixedMode}

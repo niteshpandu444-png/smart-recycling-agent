@@ -61,7 +61,7 @@ const CATEGORY_FLOW_THEMES: Record<
 export const MaterialFlow: React.FC<MaterialFlowProps> = ({ flows = [], isLoading = false }) => {
   if (isLoading && flows.length === 0) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 animate-pulse h-64" aria-busy="true" />
+      <div className="h-48 border border-slate-200 bg-white" aria-busy="true" aria-label="Loading material flow records" />
     );
   }
 
@@ -71,25 +71,24 @@ export const MaterialFlow: React.FC<MaterialFlowProps> = ({ flows = [], isLoadin
     <section aria-labelledby="material-flow-title" className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <ActivityIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          <h2 id="material-flow-title" className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Material Routing & Flow Dynamics
+          <ActivityIcon className="w-4 h-4 text-emerald-700" />
+          <h2 id="material-flow-title" className="text-sm font-semibold text-slate-900">
+            Material flow
           </h2>
         </div>
         <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
-          DERIVED FROM VERIFIED DATA
+          RECORDED FLOW DATA
         </span>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="border border-slate-200 bg-white p-4">
         {flows.length === 0 ? (
-          <div className="py-10 text-center">
-            <BoxIcon className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              No Material Movement Recorded Yet
+          <div className="py-8 text-left">
+            <h3 className="text-sm font-medium text-slate-800">
+              No material flow records available
             </h3>
             <p className="text-[11px] text-slate-400 max-w-sm mx-auto mt-1">
-              Material flow vectors represent physical routing from mobile scanning confirmation into destination bins. When scans are recorded, active streams will display here.
+              The current backend snapshot provides inventory and capacity records, but no flow quantities. No flow graphic is shown.
             </p>
           </div>
         ) : (
@@ -115,12 +114,12 @@ export const MaterialFlow: React.FC<MaterialFlowProps> = ({ flows = [], isLoadin
                 return (
                   <div
                     key={flow.id}
-                    className={`rounded-xl p-3 border ${theme.borderClass} ${theme.bgClass} transition-all`}
+                    className={`border border-slate-200 bg-white p-3`}
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                       {/* Left: Source / Stream info */}
                       <div className="flex items-center gap-2.5 min-w-[200px]">
-                        <div className="p-2 rounded-lg bg-white dark:bg-slate-800 shadow-xs shrink-0">
+                        <div className="border border-slate-200 bg-slate-50 p-2 shrink-0">
                           {theme.icon}
                         </div>
                         <div>
@@ -160,7 +159,7 @@ export const MaterialFlow: React.FC<MaterialFlowProps> = ({ flows = [], isLoadin
                       <div className="md:min-w-[180px] md:text-right flex items-center md:justify-end gap-1.5 text-xs">
                         <span className="text-slate-500 text-[11px]">Routed to:</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">
-                          {flow.targetBinName || flow.targetBinId || "Designated Bin"}
+                            {flow.targetBinName || flow.targetBinId || "Unavailable"}
                         </span>
                       </div>
                     </div>
@@ -169,10 +168,6 @@ export const MaterialFlow: React.FC<MaterialFlowProps> = ({ flows = [], isLoadin
               })}
             </div>
 
-            {/* Note on Data Grounding */}
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center pt-2">
-              Note: Flow volumes are derived exclusively from verified transaction logs. Historical throughput is not conflated with momentary bin fullness.
-            </p>
           </div>
         )}
       </div>

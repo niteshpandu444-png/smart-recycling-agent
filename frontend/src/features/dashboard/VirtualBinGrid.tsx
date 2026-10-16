@@ -53,19 +53,19 @@ const STATUS_CONFIG: Record<
     barColorClass: "bg-emerald-500",
   },
   warning: {
-    label: "Near Capacity (>75%)",
+    label: "Warning",
     badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
     barColorClass: "bg-amber-500",
   },
   critical: {
-    label: "Critical (>90%)",
+    label: "Critical",
     badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
     barColorClass: "bg-rose-600",
   },
   maintenance: {
-    label: "Maintenance Required",
-    badgeClass: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
-    barColorClass: "bg-purple-500",
+    label: "Maintenance",
+    badgeClass: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300",
+    barColorClass: "bg-slate-500",
   },
   unknown: {
     label: "Status Unreported",
@@ -140,7 +140,7 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse" aria-busy="true">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-48 bg-slate-200 dark:bg-slate-800/80 rounded-2xl p-5 border border-slate-200 dark:border-slate-800" />
+          <div key={i} className="h-40 border border-slate-200 bg-white" />
         ))}
       </div>
     );
@@ -148,13 +148,13 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
 
   if (bins.length === 0) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 border border-slate-200 dark:border-slate-800 text-center">
+      <div className="border border-slate-200 bg-white p-6">
         <BoxIcon className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
         <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-          No Virtual Bins Configured
+          No destination bins recorded
         </h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
-          The Digital Twin has not registered destination bins. Once the facility bin schema is initialized, live occupancy will appear here.
+          The latest backend snapshot contains no destination bin records.
         </p>
       </div>
     );
@@ -163,13 +163,11 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
   return (
     <section aria-labelledby="virtual-bins-title" className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 id="virtual-bins-title" className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Destination Bins & Capacity States
+        <div>
+          <h2 id="virtual-bins-title" className="text-sm font-semibold text-slate-900">
+            Virtual bin state
           </h2>
-          <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-            {bins.length} registered
-          </span>
+          <p className="mt-0.5 text-xs text-slate-500">{bins.length} destination bins recorded in the backend snapshot</p>
         </div>
         <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
           VIRTUAL TWIN MODEL
@@ -178,20 +176,22 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {bins.map((bin) => {
-          const theme = CATEGORY_BIN_THEMES[bin.category] || CATEGORY_BIN_THEMES.unknown;
+          const theme = CATEGORY_BIN_THEMES[bin.category] || {
+            ...CATEGORY_BIN_THEMES.unknown,
+          };
           const statusConfig = STATUS_CONFIG[bin.status] || STATUS_CONFIG.unknown;
           const occupancy = calculateSafeOccupancy(bin.currentInventory, bin.capacity, bin.occupancyPercentage);
 
           return (
             <div
               key={bin.id}
-              className={`bg-white dark:bg-slate-900 rounded-2xl p-5 border ${theme.borderClass} shadow-sm flex flex-col justify-between transition-shadow hover:shadow-md`}
+              className="flex flex-col justify-between border border-slate-200 bg-white p-4"
             >
               <div>
                 {/* Header: Name, Category, Status */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 shrink-0">
+                    <div className="border border-slate-200 bg-slate-50 p-2 shrink-0">
                       {theme.icon}
                     </div>
                     <div className="min-w-0">
@@ -205,15 +205,15 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
                   </div>
 
                   {/* Status Pill */}
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${statusConfig.badgeClass}`}>
+                  <span className={`border px-2 py-1 text-[10px] font-medium uppercase tracking-wide shrink-0 ${statusConfig.badgeClass}`}>
                     {statusConfig.label}
                   </span>
                 </div>
 
                 {/* Category Badge */}
                 <div className="mb-4">
-                  <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${theme.badgeClass}`}>
-                    {theme.label}
+                  <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] font-medium ${theme.badgeClass}`}>
+                      {bin.category}
                   </span>
                 </div>
 
@@ -221,7 +221,7 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
                 <div className="space-y-1.5 mb-4">
                   <div className="flex justify-between items-baseline text-xs">
                     <span className="text-slate-500 dark:text-slate-400 font-medium">
-                      Fill Level:
+                      Fill level:
                     </span>
                     <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
                       {occupancy.isValid && occupancy.percent !== null ? (
@@ -231,10 +231,17 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
                           </span>
                         </>
                       ) : (
-                        <span className="text-slate-400 font-normal italic">Unmetered</span>
+                        <span className="text-slate-500 font-normal">Unavailable</span>
                       )}
                     </span>
                   </div>
+                  <p className="text-[11px] text-slate-500">
+                    {typeof bin.occupancyPercentage === "number" && Number.isFinite(bin.occupancyPercentage)
+                      ? "Occupancy reported by backend"
+                      : occupancy.isValid
+                        ? "Occupancy calculated from inventory and capacity"
+                        : "Occupancy unavailable: capacity not configured"}
+                  </p>
 
                   {/* Fill progress bar */}
                   <div className="w-full h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden relative border border-slate-200/60 dark:border-slate-700/60">
@@ -257,7 +264,7 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
                 </div>
 
                 {/* Inventory vs Capacity Figures */}
-                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs border border-slate-100 dark:border-slate-800">
+                <div className="grid grid-cols-2 gap-2 border border-slate-200 bg-slate-50 p-3 text-xs">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">
                       Current Volume
@@ -271,7 +278,7 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
                       Configured Limit
                     </span>
                     <span className="font-mono text-slate-600 dark:text-slate-300">
-                      {bin.capacity && bin.capacity > 0 ? `${bin.capacity} ${bin.inventoryUnit}` : "—"}
+                      {bin.capacity && bin.capacity > 0 ? `${bin.capacity} ${bin.inventoryUnit}` : "Unavailable"}
                     </span>
                   </div>
                 </div>
@@ -279,13 +286,13 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
 
               {/* Footer: Contamination Indicator & Service Warning */}
               <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] flex items-center justify-between">
-                {bin.contaminationRisk !== undefined && bin.contaminationRisk !== null && bin.contaminationRisk > 0 ? (
-                  <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400" title="Simulated risk of cross-material contamination">
+                {typeof bin.contaminationRisk === "number" && Number.isFinite(bin.contaminationRisk) && bin.contaminationRisk >= 0 ? (
+                  <div className="flex items-center gap-1 text-slate-600" title="Backend-reported contamination risk">
                     <ShieldAlertIcon className="w-3.5 h-3.5" />
-                    <span>Contamination risk: {(bin.contaminationRisk * 100).toFixed(0)}%</span>
+                    <span>Contamination risk: {(bin.contaminationRisk * 100).toFixed(0)}% · reported</span>
                   </div>
                 ) : (
-                  <span className="text-slate-400">Cross-contamination: Low</span>
+                  <span className="text-slate-500">Contamination risk: Unavailable</span>
                 )}
 
                 {bin.needsService && (

@@ -10,133 +10,52 @@ interface ConnectionStatusProps {
   onRefresh?: () => void;
 }
 
-export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
-  connectionState,
-  restApiState,
-  lastSyncTimestamp,
-  isLoading = false,
-  onRefresh,
-}) => {
-  const getStatusConfig = () => {
-    switch (connectionState) {
-      case "connected":
-        return {
-          label: "WebSocket Connected",
-          badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
-          dotClass: "bg-emerald-500",
-          icon: <WifiIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />,
-          description: "This browser has an active WebSocket connection for live updates.",
-        };
-      case "reconnecting":
-        return {
-          label: "WebSocket Reconnecting",
-          badgeClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
-          dotClass: "bg-amber-500 animate-ping",
-          icon: <RefreshIcon className="w-3.5 h-3.5 text-amber-600 animate-spin" />,
-          description: "Live updates are reconnecting; REST polling remains available.",
-        };
-      case "stale":
-        return {
-          label: "WebSocket Stale",
-          badgeClass: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800",
-          dotClass: "bg-orange-500",
-          icon: <ClockIcon className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />,
-          description: "The live WebSocket connection is stale; REST polling may refresh the displayed data.",
-        };
-      case "offline":
-        return {
-          label: "WebSocket Offline",
-          badgeClass: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
-          dotClass: "bg-rose-500",
-          icon: <WifiOffIcon className="w-3.5 h-3.5 text-rose-500" />,
-          description: "The WebSocket is offline. REST availability is shown separately.",
-        };
-      case "unavailable":
-      default:
-        return {
-          label: "WebSocket Unavailable",
-          badgeClass: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
-          dotClass: "bg-slate-400",
-          icon: <AlertTriangleIcon className="w-3.5 h-3.5 text-slate-500" />,
-          description: "The WebSocket service is unavailable. REST availability is shown separately.",
-        };
-    }
-  };
+const STATUS: Record<DashboardConnectionState, { label: string; detail: string; className: string; icon: React.ReactNode }> = {
+  connected: { label: "Connected", detail: "Live connection open", className: "border-emerald-200 bg-emerald-50 text-emerald-800", icon: <WifiIcon className="h-4 w-4" /> },
+  reconnecting: { label: "Reconnecting", detail: "Live connection retrying", className: "border-amber-200 bg-amber-50 text-amber-800", icon: <RefreshIcon className="h-4 w-4" /> },
+  stale: { label: "Data may be stale", detail: "Latest request did not complete", className: "border-amber-200 bg-amber-50 text-amber-800", icon: <ClockIcon className="h-4 w-4" /> },
+  offline: { label: "Backend offline", detail: "No successful backend response", className: "border-rose-200 bg-rose-50 text-rose-800", icon: <WifiOffIcon className="h-4 w-4" /> },
+  unavailable: { label: "Unavailable", detail: "Service state unavailable", className: "border-slate-300 bg-slate-100 text-slate-700", icon: <AlertTriangleIcon className="h-4 w-4" /> },
+};
 
-  const config = getStatusConfig();
+function formatLastSync(value?: string | null): string {
+  if (!value) return "No successful refresh recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], { dateStyle: "medium", timeStyle: "medium" });
+}
 
-  const formatLastSync = (isoString?: string | null) => {
-    if (!isoString) return "No sync recorded";
-    try {
-      const date = new Date(isoString);
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    } catch {
-      return isoString;
-    }
-  };
-
+export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ connectionState, restApiState, lastSyncTimestamp, isLoading = false, onRefresh }) => {
+  const status = STATUS[connectionState];
+  const restStatus = restApiState === "available"
+    ? { label: "REST API available", className: "border-emerald-200 bg-emerald-50 text-emerald-800" }
+    : restApiState === "unavailable"
+    ? { label: "REST API unavailable", className: "border-rose-200 bg-rose-50 text-rose-800" }
+    : { label: "Checking REST API", className: "border-slate-300 bg-slate-100 text-slate-700" };
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <div
-        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
-          restApiState === "available"
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
-            : restApiState === "checking"
-            ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400"
-            : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800"
-        }`}
-        role="status"
-        aria-live="polite"
-        title="Status of the REST endpoints used to load dashboard data"
-      >
-        <span
-          className={`w-2 h-2 rounded-full ${
-            restApiState === "available"
-              ? "bg-emerald-500"
-              : restApiState === "checking"
-              ? "bg-slate-400"
-              : "bg-rose-500"
-          }`}
-          aria-hidden="true"
-        />
-        <span className="font-semibold">
-          {restApiState === "available"
-            ? "REST APIs Online"
-            : restApiState === "checking"
-            ? "Checking REST APIs"
-            : "REST APIs Unavailable"}
-        </span>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 md:justify-end">
+      <div className={`inline-flex items-center gap-2 border px-2.5 py-1.5 text-xs font-medium ${restStatus.className}`} role="status" aria-live="polite">
+        <span>{restStatus.label}</span>
       </div>
-
-      {/* Pill Badge */}
-      <div
-        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${config.badgeClass}`}
-        role="status"
-        aria-live="polite"
-        title={config.description}
-      >
-        <span className={`w-2 h-2 rounded-full ${config.dotClass}`} aria-hidden="true" />
-        {config.icon}
-        <span className="font-semibold">{config.label}</span>
+      <div className={`inline-flex items-center gap-2 border px-2.5 py-1.5 text-xs font-medium ${status.className}`} role="status" aria-live="polite">
+        {status.icon}
+        <span>{status.label}</span>
+        <span className="hidden border-l border-current/20 pl-2 font-normal sm:inline">{status.detail}</span>
       </div>
-
-      {/* Last Sync Timestamp */}
-      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-        <span className="text-slate-400 dark:text-slate-500">Last snapshot:</span>
-        <span className="font-mono">{formatLastSync(lastSyncTimestamp)}</span>
+      <div className="flex items-center gap-1.5 text-xs text-slate-600">
+        <span>Last successful refresh</span>
+        <time className="font-mono text-slate-800" dateTime={lastSyncTimestamp ?? undefined}>{formatLastSync(lastSyncTimestamp)}</time>
       </div>
-
-      {/* Manual Refresh Trigger */}
       {onRefresh && (
         <button
           type="button"
           onClick={onRefresh}
           disabled={isLoading}
-          aria-label="Refresh Digital Twin snapshot"
-          title="Query backend for fresh Digital Twin state"
-          className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
+          className="inline-flex min-h-9 items-center gap-2 border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+          aria-label="Refresh dashboard data"
         >
-          <RefreshIcon className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-emerald-600" : ""}`} />
+          <RefreshIcon className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh
         </button>
       )}
     </div>

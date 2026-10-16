@@ -31,6 +31,7 @@ from .schemas import (
     BatchScanItem,
     BatchScanResponse,
     ClassificationResponse,
+    ScanPreviewResponse,
     CropCrossCheck,
     DetectionBox,
     DetectorStatusResponse,
@@ -261,6 +262,43 @@ def _decode_image(data: bytes) -> Image.Image:
     except (UnidentifiedImageError, OSError, ValueError):
         raise HTTPException(status_code=422, detail="File content is not a valid, decodable image.") from None
 
+
+@app.post("/api/scans/preview", response_model=ScanPreviewResponse, tags=["scans"])
+async def preview_scan(
+    request: Request,
+    file: UploadFile = File(...),
+) -> ScanPreviewResponse:
+    """Classify a camera frame without persisting scans or changing twin state."""
+    try:
+        data = await _read_upload(file, request)
+        image = _decode_image(data)
+    finally:
+        await file.close()
+
+    if not classifier.ready:
+        image.close()
+        raise HTTPException(status_code=503, detail="Vision model is unavailable.")
+    try:
+        prediction = await run_in_threadpool(classifier.predict, image)
+    except Exception as exc:
+        logger.error("Vision preview inference failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Vision inference failed; no preview was produced.") from None
+    finally:
+        image.close()
+
+    if prediction.match_score is None:
+        raise HTTPException(status_code=503, detail="Vision result could not be represented for preview.")
+
+    return ScanPreviewResponse(
+        predicted_item=prediction.predicted_item,
+        predicted_category=prediction.predicted_category,
+        match_score=prediction.match_score,
+        manual_review_recommended=prediction.manual_review_recommended,
+        suggested_route=prediction.suggested_route,
+        explanation=prediction.explanation,
+        model_identifier=classifier.model_identifier,
+        classification_status=prediction.classification_status,
+    )
 
 @app.post("/api/scans", response_model=ClassificationResponse, tags=["scans"])
 async def scan_image(

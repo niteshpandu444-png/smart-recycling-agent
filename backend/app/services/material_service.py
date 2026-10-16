@@ -6,6 +6,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from backend.app.models import Scan, MaterialEntry, VirtualBin, MaterialEvent
 from backend.app.adapters.schemas import (
@@ -165,8 +166,28 @@ def confirm_material(
     }
 
     try:
-        # Update bin inventory & status
-        target_bin.current_inventory += request.quantity
+        # Keep capacity enforcement atomic: FOR UPDATE is ignored by SQLite and
+        # a read-then-write check alone can admit concurrent overflow.
+        updated_rows = (
+            db.query(VirtualBin)
+            .filter(
+                VirtualBin.id == target_bin.id,
+                VirtualBin.current_inventory + request.quantity <= VirtualBin.capacity,
+            )
+            .update(
+                {VirtualBin.current_inventory: VirtualBin.current_inventory + request.quantity},
+                synchronize_session="fetch",
+            )
+        )
+        if updated_rows == 0:
+            db.refresh(target_bin)
+            raise BinOverflowError(
+                bin_id=target_bin.id,
+                capacity=target_bin.capacity,
+                current=target_bin.current_inventory,
+                added=request.quantity,
+            )
+
         ratio = target_bin.current_inventory / target_bin.capacity
         if ratio >= 1.0:
             target_bin.status = "full"
@@ -218,6 +239,31 @@ def confirm_material(
         db.commit()
         db.refresh(entry)
 
+    except IntegrityError:
+        db.rollback()
+        # Concurrent requests can pass the initial replay checks together. Resolve
+        # an idempotency replay to its committed entry; otherwise preserve the
+        # established duplicate-confirmation conflict.
+        if effective_idempotency_key:
+            existing_event = (
+                db.query(MaterialEvent)
+                .filter(MaterialEvent.idempotency_key == effective_idempotency_key)
+                .first()
+            )
+            if existing_event and existing_event.material_id:
+                existing_entry = (
+                    db.query(MaterialEntry)
+                    .filter(MaterialEntry.id == existing_event.material_id)
+                    .first()
+                )
+                if existing_entry:
+                    return existing_entry
+
+        current_scan = db.query(Scan).filter(Scan.id == request.scan_id).first()
+        existing_entry = db.query(MaterialEntry).filter(MaterialEntry.scan_id == request.scan_id).first()
+        if existing_entry or (current_scan and current_scan.review_status == "confirmed"):
+            raise ScanAlreadyConfirmedError(f"Scan '{request.scan_id}' has already been confirmed.")
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Transaction failed during confirmation: {e}")

@@ -38,36 +38,17 @@ const CATEGORY_EVENT_BADGES: Record<
   },
 };
 
-const STATUS_BADGES: Record<string, { label: string; badgeClass: string }> = {
-  completed: {
-    label: "Committed",
-    badgeClass: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  },
-  pending: {
-    label: "Pending",
-    badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  },
-  failed: {
-    label: "Failed",
-    badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-  },
-  reversed: {
-    label: "Reversed",
-    badgeClass: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300",
-  },
-};
-
 export const RecentEvents: React.FC<RecentEventsProps> = ({ events = [], isLoading = false }) => {
   if (isLoading && events.length === 0) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 animate-pulse h-80" aria-busy="true" />
+      <div className="h-48 border border-slate-200 bg-white" aria-busy="true" aria-label="Loading recent events" />
     );
   }
 
   const formatTimestamp = (iso: string) => {
     try {
       const d = new Date(iso);
-      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
     } catch {
       return iso;
     }
@@ -82,31 +63,29 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events = [], isLoadi
             Audit Log & Event Stream
           </h2>
         </div>
-        <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+        <span className="text-xs text-slate-500">
           {events.length} events
         </span>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm max-h-[460px] overflow-y-auto">
+      <div className="max-h-[460px] overflow-y-auto border border-slate-200 bg-white p-4">
         {events.length === 0 ? (
           <div className="py-8 text-center text-slate-400">
             <CheckCircle2Icon className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
             <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-              No audit events logged yet.
+              No event records available.
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Items confirmed via the mobile scanner will record real-time telemetry here.
+              The backend event history is currently empty.
             </p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-800" role="list">
             {events.map((evt) => {
-              const categoryBadge = CATEGORY_EVENT_BADGES[evt.category] || CATEGORY_EVENT_BADGES.unknown;
-              const status = STATUS_BADGES[evt.processingStatus] || {
-                label: evt.processingStatus,
-                badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+              const categoryBadge = CATEGORY_EVENT_BADGES[evt.category] || {
+                ...CATEGORY_EVENT_BADGES.unknown,
+                label: evt.category,
               };
-
               return (
                 <li key={evt.id} className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2.5 min-w-0">
@@ -118,28 +97,26 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events = [], isLoadi
 
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                          {evt.itemName}
-                        </p>
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${status.badgeClass}`}>
-                          {status.label}
-                        </span>
+                        <p className="text-xs font-semibold text-slate-900 truncate">{evt.itemName}</p>
+                        <span className="border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600">{evt.eventType}</span>
                       </div>
 
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
-                        <span>Destination: <span className="font-mono text-slate-700 dark:text-slate-300">{evt.destinationName || evt.destinationId}</span></span>
+                        <span>Category: <span className="font-medium text-slate-700 dark:text-slate-300">{evt.category}</span></span>
                         <span>•</span>
                         <span>Quantity: <span className="font-mono font-semibold">{evt.quantity} {evt.unit}</span></span>
+                        <span>•</span>
+                        <span>Destination: <span className="font-mono text-slate-700 dark:text-slate-300">{evt.destinationName || evt.destinationId || "Unavailable"}</span></span>
                       </p>
                     </div>
                   </div>
 
                   <div className="text-right shrink-0">
                     <span className="text-[10px] font-mono text-slate-400 block">
-                      {formatTimestamp(evt.timestamp)}
+                      <time dateTime={evt.timestamp} title={evt.timestamp}>{formatTimestamp(evt.timestamp)}</time>
                     </span>
                     <span className="text-[9px] font-mono text-slate-400/80 uppercase">
-                      {evt.eventType.replace(/_/g, " ")}
+                      Status: Unavailable
                     </span>
                   </div>
                 </li>

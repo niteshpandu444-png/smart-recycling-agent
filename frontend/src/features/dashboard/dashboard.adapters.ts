@@ -13,26 +13,10 @@ import {
   MaterialFlowNode,
 } from "./dashboard.types";
 
-/** The dashboard groups material-specific backend categories into its visual streams. */
+/** Preserve the backend category label; mark only missing values as unknown. */
 export function toDashboardCategory(category: string | null | undefined): DashboardMaterialCategory {
-  switch (category?.toLowerCase()) {
-    case "plastic":
-    case "paper":
-    case "metal":
-    case "glass":
-    case "recyclable":
-      return "recyclable";
-    case "organic":
-    case "compostable":
-    case "biodegradable":
-      return "biodegradable";
-    case "reusable":
-      return "reusable";
-    case "hazardous":
-      return "hazardous";
-    default:
-      return "unknown";
-  }
+  const normalized = category?.trim().toLowerCase();
+  return normalized || "unknown";
 }
 
 export function adaptSnapshot(snapshot: DigitalTwinSnapshot): {

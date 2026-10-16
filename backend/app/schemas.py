@@ -36,6 +36,19 @@ class ClassificationResponse(BaseModel):
     model_identifier: str = Field(min_length=1, description="Configured model/checkpoint identifier.")
     classification_status: ClassificationStatus
 
+class ScanPreviewResponse(BaseModel):
+    """Inference result for a live preview; this response creates no scan record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    predicted_item: str | None = Field(default=None, description="Best-supported item description, or null when uncertain.")
+    predicted_category: MaterialCategory | None = Field(default=None, description="Application category, or null when uncertain.")
+    match_score: float | None = Field(default=None, ge=0.0, le=1.0, description="Candidate comparison score; not a calibrated probability.")
+    manual_review_recommended: bool
+    suggested_route: str = Field(min_length=1, description="Conditional handling guidance, not a local-facility acceptance decision.")
+    explanation: str = Field(min_length=1, description="Concise reasoning and material limitations.")
+    model_identifier: str = Field(min_length=1, description="Configured model/checkpoint identifier.")
+    classification_status: ClassificationStatus
 
 # ---------------------------------------------------------------------------
 # Mixed-waste batch scanning
