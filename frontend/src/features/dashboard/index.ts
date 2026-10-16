@@ -6,4 +6,5 @@ export * from "./VirtualBinGrid";
 export * from "./MaterialFlow";
 export * from "./RecentEvents";
 export * from "./RecommendationPanel";
+export * from "./RecyclingAgentPanel";
 export * from "./DashboardView";

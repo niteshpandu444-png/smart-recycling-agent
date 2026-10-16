@@ -11,6 +11,11 @@ events, and bin state use the teammate's shared SQLAlchemy models and services.
   independently of model readiness.
 - `GET /api/model/status` returns initialization state, model identifier,
   inference availability, and a safe diagnostic status.
+- HTTP browser access uses the comma-separated `CORS_ORIGINS` allowlist.
+  Local development defaults to `http://localhost:3000` and
+  `http://127.0.0.1:3000`; set the deployed frontend origin in `backend/.env`
+  when the hosting URL is known. Credentials are disabled because this API
+  does not use browser cookies or session authentication.
 - `POST /api/scans` accepts `multipart/form-data` with one image field named
   `file`, commits its `Scan` record, and returns `ClassificationResponse`.
 - `POST /api/materials/confirm` confirms or corrects a scan, creates a
@@ -39,6 +44,67 @@ accepted but route to the existing `bin-holding`; the Digital Twin does not
 currently define a dedicated authorized hazardous-waste or reuse destination.
 The frontend should submit a specific material category when confirming a
 recyclable scan rather than the broad `recyclable` response category.
+
+## Mixed-waste batch scanning
+
+`POST /api/scans/batch` runs a **second, separate** model. The original classifier
+is whole-image and single-label; it cannot report how many items a photo contains
+or where they are, so it is never presented as a multi-object detector.
+
+| Property | Value |
+| --- | --- |
+| Artifact | `backend/models/waste-detector.onnx` (downloaded on first use) |
+| Source | https://huggingface.co/Jeremy341/MIRA-AI (`mira_exp019.onnx`) |
+| Architecture | Ultralytics YOLO11n detect head, exported to ONNX (training stack 8.4.112) |
+| Input / output | `float32[1,3,640,640]` → `float32[1,9,8400]` (4 box + 5 class scores, no embedded NMS) |
+| Classes | `glass`, `metal`, `paper`, `plastic`, `trash` |
+| Size | 10,607,296 bytes |
+| Licence | **AGPL-3.0**, declared in the artifact's own ONNX metadata. The Hugging Face model card states MIT. Review before deploying. |
+
+Preprocessing is the Ultralytics letterbox convention (aspect-preserving resize to
+640×640, neutral-grey pad). Post-processing is class-aware NMS at IoU 0.45, then a
+same-object collapse at IoU 0.75 that keeps the losing label as evidence for
+review. No accuracy figure is claimed: the artifact was never evaluated here
+against a labelled waste benchmark.
+
+Detected items are persisted as **pending** `scans` rows grouped by a `batch_scans`
+record. A batch scan never mutates inventory; `POST /api/materials/confirm-batch`
+applies the existing single-item confirmation workflow per item.
+
+Known limitations, measured on this artifact:
+
+- Recall is limited. On the repository's own test images it detected paper at 0.80
+  and glass at 0.88, but plastic at only 0.20–0.35, and it misses items entirely.
+- It can be confident about a featureless region: a uniformly coloured image
+  produced `glass` at 0.83. Crop texture analysis flags those for review.
+- There is no battery, organic, or electronic-waste class.
+- The detector reports material appearance, not object identity (a bottle is
+  labelled by material, not as a bottle).
+
+## If the detector is ever retrained from user corrections
+
+Nothing in this repository trains or fine-tunes a model at runtime, and no
+learning pipeline exists. `GET /api/analytics/corrections` and
+`GET /api/analytics/confusion-matrix` expose correction history that *could* seed
+such work, but treating them as training data requires safeguards this project has
+not implemented:
+
+- **Data quality.** Corrections are not labels. They carry no independent
+  verification, no inter-annotator agreement, and they are biased towards whatever
+  the model already finds, so hard cases are under-represented. Only items with a
+  recorded, deliberate `user_corrected` provenance should be candidates.
+- **Holdout discipline.** A labelled evaluation set must be split before any
+  training run. Accuracy must never be reported from the data used to tune the
+  model, and the existing test images are not a benchmark.
+- **Stratified review.** Each material class needs its own held-out sample,
+  including the classes the detector currently never predicts (battery, organic)
+  and the confusable pairs registered in `routing_rules.py`.
+- **Regression gates.** A candidate must match or beat the current artifact on the
+  held-out set *and* preserve the safety behaviour: low-confidence and unsupported
+  items must still route to review rather than being auto-approved.
+- **Provenance.** Retraining changes inference behaviour, so it changes the
+  AGPL-3.0 obligations described below and must be recorded as a deliberate,
+  reviewed release rather than a background job.
 
 ## Model and inference
 
@@ -110,6 +176,13 @@ without additional prefixes. The WebSocket publisher contract is synchronous
 The app bridges those callbacks onto its event loop, removes the listener on
 shutdown, drops disconnected clients, and sends the current database snapshot
 to clients when they connect or reconnect.
+
+The `/ws` endpoint checks a supplied browser `Origin` against the same
+`CORS_ORIGINS` allowlist. Clients without an `Origin` header (for example,
+non-browser service clients) are permitted; deployments that require browser
+clients should configure the frontend's exact origin. Set `CORS_ORIGINS` to the
+exact deployed frontend origin, without a path or wildcard. HTTPS deployments
+must configure the frontend to use `wss://` for the WebSocket connection.
 
 Recommendations use the existing deterministic fallback grounded in the
 current persisted Digital Twin state. This integration adds no external LLM

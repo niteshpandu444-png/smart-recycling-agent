@@ -76,6 +76,20 @@ CLASS_POLICIES: dict[str, tuple[str, str, str]] = {
     ),
 }
 
+# Maps this classifier's material classes onto the application categories used
+# by persistence and routing. Kept beside CLASS_POLICIES because it is a
+# property of this classifier's label set.
+PERSISTED_CATEGORY_BY_MODEL_CLASS: dict[str, str] = {
+    "battery": "hazardous",
+    "biological": "organic",
+    "cardboard": "paper",
+    "glass": "glass",
+    "metal": "metal",
+    "paper": "paper",
+    "plastic": "plastic",
+    "trash": "holding",
+}
+
 DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "wastewise-yolo.onnx"
 
 

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from backend.app.database import Base, get_db, init_db
 from backend.app.models import Scan, VirtualBin, MaterialEntry, MaterialEvent
-from backend.app.routers import materials, twin, events, bins, recommendations, analytics
+from backend.app.routers import agent, analytics, bins, events, materials, recommendations, twin
 from backend.app.adapters.event_publisher import clear_event_listeners, register_event_listener
 
 
@@ -60,6 +60,7 @@ def test_app(test_db):
     app.include_router(bins.router)
     app.include_router(recommendations.router)
     app.include_router(analytics.router)
+    app.include_router(agent.router)
 
     return app
 

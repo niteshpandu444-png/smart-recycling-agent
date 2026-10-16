@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from backend.app.models import Scan, MaterialEntry, VirtualBin, MaterialEvent
-from backend.app.adapters.schemas import MaterialConfirmRequest, ReclassifyRequest
+from backend.app.adapters.schemas import (
+    BatchConfirmRequest,
+    BatchConfirmResponse,
+    BatchConfirmResultItem,
+    MaterialConfirmRequest,
+    ReclassifyRequest,
+)
 from backend.app.adapters.event_publisher import publish_event
 from backend.app.services.routing_rules import (
     evaluate_uncertainty,
@@ -233,6 +239,94 @@ def confirm_material(
     )
 
     return entry
+
+
+def confirm_materials_batch(
+    db: Session,
+    request: BatchConfirmRequest,
+) -> BatchConfirmResponse:
+    """Confirm several mixed-waste items, each through the existing workflow.
+
+    Deliberately *not* one all-or-nothing transaction. Each item reuses
+    :func:`confirm_material`, so it keeps the same capacity guard, provenance,
+    idempotency handling, event record, and post-commit broadcast as the
+    single-item path. An item that cannot be accepted (scan missing, category
+    invalid, bin full, or already confirmed) fails only for itself and its reason
+    is returned.
+
+    Retrying the same batch with the same per-item idempotency keys cannot
+    double-count inventory: a replayed key returns the originally recorded
+    entry instead of adding a second one.
+    """
+    results: list[BatchConfirmResultItem] = []
+    confirmed_count = 0
+    already_confirmed_count = 0
+    failed_count = 0
+
+    for item in request.items:
+        single_request = MaterialConfirmRequest(
+            scan_id=item.scan_id,
+            confirmed_category=item.confirmed_category,
+            quantity=item.quantity,
+            unit=item.unit,
+            destination_bin_id=item.destination_bin_id,
+            confirmation_source=item.confirmation_source,
+            description=item.description,
+            verification_answers=item.verification_answers,
+            idempotency_key=item.idempotency_key,
+        )
+        try:
+            entry = confirm_material(db, single_request, idempotency_key=item.idempotency_key)
+        except ScanAlreadyConfirmedError as exc:
+            already_confirmed_count += 1
+            results.append(
+                BatchConfirmResultItem(
+                    item_id=item.item_id,
+                    scan_id=item.scan_id,
+                    status="already_confirmed",
+                    error=str(exc),
+                )
+            )
+            continue
+        except (
+            ScanNotFoundError,
+            InvalidCategoryError,
+            BinNotFoundError,
+            BinOverflowError,
+            MaterialServiceError,
+            ValueError,
+        ) as exc:
+            failed_count += 1
+            results.append(
+                BatchConfirmResultItem(
+                    item_id=item.item_id,
+                    scan_id=item.scan_id,
+                    status="failed",
+                    error=str(exc),
+                )
+            )
+            continue
+
+        confirmed_count += 1
+        results.append(
+            BatchConfirmResultItem(
+                item_id=item.item_id,
+                scan_id=item.scan_id,
+                status="confirmed",
+                material_id=entry.id,
+                confirmed_category=entry.confirmed_category,
+                destination=entry.destination,
+                processing_status=entry.processing_status,
+            )
+        )
+
+    return BatchConfirmResponse(
+        batch_id=request.batch_id,
+        confirmed_count=confirmed_count,
+        already_confirmed_count=already_confirmed_count,
+        failed_count=failed_count,
+        results=results,
+    )
 
 
 def reclassify_material(

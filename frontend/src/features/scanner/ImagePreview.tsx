@@ -10,6 +10,10 @@ interface ImagePreviewProps {
   onSubmit: () => void;
   isSubmitting?: boolean;
   errorMessage?: string | null;
+  /** Overrides the primary action label; single-item wording is the default. */
+  submitLabel?: string;
+  /** Overrides the advisory line, which differs for a multi-item scene. */
+  hintText?: string;
 }
 
 export const ImagePreview: React.FC<ImagePreviewProps> = ({
@@ -18,6 +22,8 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
   onSubmit,
   isSubmitting = false,
   errorMessage = null,
+  submitLabel = "Analyze Waste",
+  hintText = "Ensure the item is visible and clearly lit for accurate computer vision classification.",
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -80,7 +86,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
           className="mt-3 w-full flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 text-xs"
         >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>Ensure the item is visible and clearly lit for accurate computer vision classification.</p>
+          <p>{hintText}</p>
         </div>
       )}
 
@@ -102,7 +108,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
           onClick={onSubmit}
           disabled={isSubmitting}
           className="flex-1 min-h-[44px] py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 transition-all shadow-md"
-          aria-label={errorMessage ? "Retry waste analysis" : "Analyze waste photograph"}
+          aria-label={errorMessage ? "Retry waste analysis" : submitLabel}
         >
           {errorMessage ? (
             <>
@@ -112,7 +118,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
           ) : (
             <>
               <Sparkles className="w-4 h-4" />
-              Analyze Waste
+              {submitLabel}
             </>
           )}
         </button>

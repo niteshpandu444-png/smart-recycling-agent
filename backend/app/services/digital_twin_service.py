@@ -8,8 +8,9 @@ from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
-from backend.app.models import VirtualBin, MaterialEntry, MaterialEvent, Scan, SnapshotRecord
+from backend.app.models import BatchScan, VirtualBin, MaterialEntry, MaterialEvent, Scan, SnapshotRecord
 from backend.app.adapters.schemas import (
+    BatchActivity,
     DigitalTwinSnapshot,
     BinSnapshot,
     SimulationRequest,
@@ -54,6 +55,83 @@ def calculate_bin_contamination_risk(db: Session, bin_id: str) -> float:
         return 0.0
 
     return round(min(1.0, risk_weighted_count / total_count), 3)
+
+
+BATCH_ACTIVITY_LIMIT = 5
+
+
+def collect_batch_metrics(db: Session, activity_limit: int = BATCH_ACTIVITY_LIMIT) -> Dict[str, Any]:
+    """Aggregate mixed-waste batch activity from persisted records.
+
+    Everything here is derived from stored batch and material rows. Detected
+    item counts are reported separately from confirmed counts so batch activity
+    can never be mistaken for inventory.
+    """
+    batch_rows = (
+        db.query(BatchScan).order_by(desc(BatchScan.created_at), desc(BatchScan.id)).all()
+    )
+
+    detected_item_totals: Dict[str, float] = {}
+    all_item_scan_ids: List[str] = []
+    for row in batch_rows:
+        for category, quantity in (row.category_totals or {}).items():
+            detected_item_totals[category] = round(
+                detected_item_totals.get(category, 0.0) + float(quantity), 2
+            )
+        all_item_scan_ids.extend(str(scan_id) for scan_id in (row.item_scan_ids or []))
+
+    confirmed_from_batch_count = 0
+    if all_item_scan_ids:
+        confirmed_from_batch_count = int(
+            db.query(func.count(MaterialEntry.id))
+            .filter(MaterialEntry.scan_id.in_(all_item_scan_ids))
+            .scalar()
+            or 0
+        )
+
+    recent_batch_activity: List[BatchActivity] = []
+    for row in batch_rows[:activity_limit]:
+        item_scan_ids = [str(scan_id) for scan_id in (row.item_scan_ids or [])]
+        confirmed = 0
+        pending_review = 0
+        if item_scan_ids:
+            confirmed = int(
+                db.query(func.count(MaterialEntry.id))
+                .filter(MaterialEntry.scan_id.in_(item_scan_ids))
+                .scalar()
+                or 0
+            )
+            pending_review = int(
+                db.query(func.count(Scan.id))
+                .filter(
+                    Scan.id.in_(item_scan_ids),
+                    Scan.review_status == "needs_review",
+                )
+                .scalar()
+                or 0
+            )
+        recent_batch_activity.append(
+            BatchActivity(
+                batch_id=row.id,
+                created_at=row.created_at,
+                detection_count=int(row.detection_count),
+                review_required_count=int(row.review_required_count),
+                confirmed_count=confirmed,
+                pending_review_count=pending_review,
+            )
+        )
+
+    needs_review_scan_count = int(
+        db.query(func.count(Scan.id)).filter(Scan.review_status == "needs_review").scalar() or 0
+    )
+
+    return {
+        "batch_scan_count": len(batch_rows),
+        "detected_item_totals": {k: round(v, 2) for k, v in sorted(detected_item_totals.items())},
+        "needs_review_scan_count": needs_review_scan_count,
+        "confirmed_from_batch_count": confirmed_from_batch_count,
+        "recent_batch_activity": recent_batch_activity,
+    }
 
 
 def get_digital_twin_snapshot(db: Session) -> DigitalTwinSnapshot:
@@ -119,6 +197,7 @@ def get_digital_twin_snapshot(db: Session) -> DigitalTwinSnapshot:
         bins=bin_snapshots,
         processing_totals=processing_totals,
         pending_verification_count=pending_verification,
+        **collect_batch_metrics(db),
     )
 
     return snapshot

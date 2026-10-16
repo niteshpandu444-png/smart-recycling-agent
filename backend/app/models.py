@@ -45,6 +45,33 @@ class Scan(Base):
     events = relationship("MaterialEvent", back_populates="scan")
 
 
+class BatchScan(Base):
+    """One mixed-waste scene scan and the pending item scans it produced.
+
+    A batch scan is *detection activity*, not inventory. It records which scan
+    records a single mixed-scene upload created so the Digital Twin can report
+    batch activity and items awaiting review. An item contributes to inventory
+    only when it is separately confirmed through the material confirmation
+    workflow.
+    """
+
+    __tablename__ = "batch_scans"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    detector_identifier = Column(String(100), nullable=False)
+    # How the image arrived: an uploaded file or a capture from the live camera.
+    source = Column(String(20), nullable=False, default="upload")
+    image_width = Column(Float, nullable=False)
+    image_height = Column(Float, nullable=False)
+    detection_count = Column(Float, nullable=False, default=0.0)
+    review_required_count = Column(Float, nullable=False, default=0.0)
+    # Detected (not confirmed) item counts per application category.
+    category_totals = Column(JSON, nullable=False, default=dict)
+    item_scan_ids = Column(JSON, nullable=False, default=list)
+    is_demo = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+
+
 class MaterialEntry(Base):
     __tablename__ = "material_entries"
 

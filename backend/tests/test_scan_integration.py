@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy.orm import sessionmaker
+from starlette.websockets import WebSocketDisconnect
 
 from backend.app import main
 from backend.app.adapters.event_publisher import clear_event_listeners, register_event_listener
@@ -146,6 +147,17 @@ def test_scan_confirm_snapshot_websocket_and_reopen(integrated_client):
         assert reopened_db.query(MaterialEvent).filter(MaterialEvent.scan_id == result["scan_id"]).count() == 1
         assert reopened_db.query(VirtualBin).filter_by(id="bin-paper").one().current_inventory == 1
     assert registered == ["material_confirmed"]
+
+
+def test_websocket_allows_configured_origin_and_rejects_unlisted_origin(integrated_client):
+    client, _test_sessions = integrated_client
+    with client.websocket_connect("/ws", headers={"origin": main.CORS_ORIGINS[0]}) as websocket:
+        assert websocket.receive_json()["type"] == "snapshot"
+
+    with pytest.raises(WebSocketDisconnect) as disconnected:
+        with client.websocket_connect("/ws", headers={"origin": "https://untrusted.example"}):
+            pass
+    assert disconnected.value.code == 1008
 
 
 def test_uncertain_scan_persists_as_reviewable_and_can_be_corrected(integrated_client, monkeypatch):

@@ -9,12 +9,15 @@ from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models import MaterialEntry
 from backend.app.adapters.schemas import (
+    BatchConfirmRequest,
+    BatchConfirmResponse,
     MaterialConfirmRequest,
     MaterialEntryResponse,
     ReclassifyRequest,
 )
 from backend.app.services.material_service import (
     confirm_material,
+    confirm_materials_batch,
     reclassify_material,
     ScanNotFoundError,
     ScanAlreadyConfirmedError,
@@ -63,6 +66,29 @@ def confirm_material_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except MaterialServiceError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post(
+    "/confirm-batch",
+    response_model=BatchConfirmResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Confirm several detected mixed-waste items",
+)
+def confirm_materials_batch_endpoint(
+    request: BatchConfirmRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Confirms a reviewed batch of mixed-waste items, one item at a time through the
+    existing single-item confirmation workflow.
+
+    Each item keeps its own idempotency key and its own transaction, so an item
+    that cannot be accepted (a full destination bin, an already-confirmed scan,
+    an invalid category) fails only for itself and its reason is returned in
+    ``results``. Callers must treat ``failed_count`` above zero as a partial
+    outcome, not as a successful batch.
+    """
+    return confirm_materials_batch(db, request)
 
 
 @router.get(

@@ -1,18 +1,37 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { Camera, RefreshCw, AlertCircle, Upload, SwitchCamera } from "lucide-react";
+import { Camera, RefreshCw, AlertCircle, Upload, SwitchCamera, Zap, ZapOff } from "lucide-react";
+import {
+  STABLE_FRAMES_REQUIRED,
+  AutoCaptureStatus,
+  useAutoCapture,
+} from "./useAutoCapture";
 
 interface CameraFeedProps {
-  onCapture: (file: File) => void;
+  onCapture: (file: File, source?: "camera" | "upload") => void;
   onError: (errorMsg: string) => void;
   onFallbackToUpload: () => void;
+  /**
+   * When true, the opt-in automatic shutter is offered. It stays off until the
+   * user turns it on, and can be stopped at any time. It never uploads frames
+   * itself: only the single captured still enters the scan flow.
+   */
+  autoCaptureAvailable?: boolean;
 }
+
+const AUTO_CAPTURE_STATUS_TEXT: Record<AutoCaptureStatus, string> = {
+  off: "Auto-capture is off",
+  waiting: "Hold the camera still over the items...",
+  steady: "Scene is steady",
+  cooldown: "Waiting before the next capture",
+};
 
 export const CameraFeed: React.FC<CameraFeedProps> = ({
   onCapture,
   onError,
   onFallbackToUpload,
+  autoCaptureAvailable = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
@@ -127,6 +146,14 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
   };
 
+  // Optional automatic shutter. Sampling only decides whether the view is still
+  // enough; it never uploads frames and never confirms anything.
+  const autoCapture = useAutoCapture({
+    videoRef,
+    active: autoCaptureAvailable && !cameraError && !isInitializing,
+    onCapture: (file) => onCapture(file, "camera"),
+  });
+
   // Snapshot frame to File
   const captureFrame = () => {
     if (!videoRef.current) return;
@@ -149,7 +176,7 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
             type: "image/jpeg",
           });
           stopStream();
-          onCapture(file);
+          onCapture(file, "camera");
         }
       },
       "image/jpeg",
@@ -228,6 +255,62 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
           </>
         )}
       </div>
+
+      {/*
+        Optional Auto-Capture Bar (mixed-scene mode only). Rendered even when the
+        camera has failed, because the switch is the only way for the user to turn
+        auto-capture back off again.
+      */}
+      {autoCaptureAvailable && (
+        <div className="w-full bg-slate-900/95 backdrop-blur-sm border-t border-slate-800 px-4 py-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {autoCapture.enabled ? (
+              <Zap
+                className={`w-4 h-4 shrink-0 ${
+                  autoCapture.status === "steady" ? "text-amber-400" : "text-slate-400"
+                }`}
+              />
+            ) : (
+              <ZapOff className="w-4 h-4 shrink-0 text-slate-500" />
+            )}
+            <span
+              className="text-[10px] text-slate-300 truncate"
+              role="status"
+              aria-live="polite"
+            >
+              {!autoCapture.enabled
+                ? AUTO_CAPTURE_STATUS_TEXT.off
+                : autoCapture.samplingActive
+                ? AUTO_CAPTURE_STATUS_TEXT[autoCapture.status]
+                : "Auto-capture is on, waiting for a usable camera"}
+            </span>
+            {autoCapture.samplingActive && autoCapture.status !== "steady" && (
+              <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                {autoCapture.stableFrames}/{STABLE_FRAMES_REQUIRED}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={autoCapture.enabled}
+            onClick={() => autoCapture.setEnabled(!autoCapture.enabled)}
+            className={`min-h-[44px] px-3 rounded-lg text-[10px] font-semibold border transition-all active:scale-95 shrink-0 ${
+              autoCapture.enabled
+                ? "bg-amber-500/20 border-amber-500/60 text-amber-300"
+                : "bg-slate-800 border-slate-700 text-slate-300"
+            }`}
+            aria-label={
+              autoCapture.enabled
+                ? "Stop automatic capture"
+                : "Enable automatic capture when the scene is steady"
+            }
+          >
+            {autoCapture.enabled ? "Stop Auto-Capture" : "Auto-Capture"}
+          </button>
+        </div>
+      )}
 
       {/* Camera Controls Bar */}
       <div className="w-full bg-slate-900/95 backdrop-blur-sm border-t border-slate-800 p-4 flex items-center justify-between">

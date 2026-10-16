@@ -8,6 +8,7 @@ import pytest
 from PIL import Image
 
 from backend.app.database import get_db
+from backend.app.config import CORS_ORIGINS, DEFAULT_CORS_ORIGINS, parse_cors_origins
 from backend.app.main import app
 from backend.app.models import Scan, VirtualBin
 from backend.app.schemas import ClassificationResponse
@@ -223,6 +224,54 @@ async def api_request(method: str, path: str, **kwargs) -> httpx.Response:
 async def test_health_is_independent_of_model():
     result = await api_request("GET", "/api/health")
     assert result.json() == {"status": "ok"}
+
+
+@pytest.mark.anyio
+async def test_cors_allows_local_frontend_and_required_headers():
+    origin = CORS_ORIGINS[0]
+    result = await api_request(
+        "OPTIONS",
+        "/api/materials/confirm",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,idempotency-key",
+        },
+    )
+    assert result.status_code == 200
+    assert result.headers["access-control-allow-origin"] == origin
+    assert "POST" in result.headers["access-control-allow-methods"]
+    assert "content-type" in result.headers["access-control-allow-headers"].lower()
+    assert "idempotency-key" in result.headers["access-control-allow-headers"].lower()
+    assert "access-control-allow-credentials" not in result.headers
+
+    health = await api_request("GET", "/api/health", headers={"Origin": origin})
+    assert health.status_code == 200
+    assert health.headers["access-control-allow-origin"] == origin
+
+
+@pytest.mark.anyio
+async def test_cors_does_not_grant_disallowed_origin():
+    origin = "https://untrusted.example"
+    result = await api_request(
+        "OPTIONS",
+        "/api/twin/snapshot",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert result.status_code == 400
+    assert "access-control-allow-origin" not in result.headers
+
+
+def test_cors_origins_parse_multiple_valid_origins_and_reject_wildcard():
+    assert parse_cors_origins("https://app.example, http://localhost:3000/") == (
+        "https://app.example",
+        "http://localhost:3000",
+    )
+    with pytest.raises(ValueError, match="without paths or wildcards"):
+        parse_cors_origins("*")
 
 
 @pytest.mark.anyio

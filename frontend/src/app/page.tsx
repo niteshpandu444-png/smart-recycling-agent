@@ -1,21 +1,26 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { CameraFeed } from "@/features/scanner/CameraFeed";
 import { UploadFallback } from "@/features/scanner/UploadFallback";
 import { ImagePreview } from "@/features/scanner/ImagePreview";
 import { ScannerLoading } from "@/features/scanner/ScannerLoading";
 import { ClassificationCard } from "@/features/scanner/ClassificationCard";
 import { ConfirmationSuccess } from "@/features/scanner/ConfirmationSuccess";
+import { BatchScanView } from "@/features/scanner/BatchScanView";
 import {
   submitScan,
+  submitBatchScan,
   confirmScan,
+  confirmBatch,
   getHealth,
   generateIdempotencyKey,
   getApiBaseUrl,
   ApiError,
 } from "@/lib/api";
 import {
+  BatchScanResponse,
   ScanClassificationResponse,
   ScanConfirmationRequest,
   ScanConfirmationResponse,
@@ -28,6 +33,8 @@ import {
   RefreshCw,
   Camera,
   Upload,
+  Layers,
+  Package,
 } from "lucide-react";
 
 type ScannerState =
@@ -36,16 +43,28 @@ type ScannerState =
   | "PREVIEW"
   | "ANALYZING"
   | "CLASSIFIED"
-  | "CONFIRMED";
+  | "CONFIRMED"
+  | "MIXED_REVIEW";
+
+/** How many waste items the user is pointing the camera at. */
+type ScanMode = "single" | "mixed";
+
+/** Which input produced the current image, recorded as batch provenance. */
+type CaptureSource = "camera" | "upload";
 
 export default function MobileScannerPage() {
   const [currentState, setCurrentState] = useState<ScannerState>("CAMERA");
+  const [scanMode, setScanMode] = useState<ScanMode>("single");
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
+  const [captureSource, setCaptureSource] = useState<CaptureSource>("camera");
 
   // Classification State
   const [classificationResult, setClassificationResult] =
     useState<ScanClassificationResponse | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+
+  // Mixed-scene batch state
+  const [batchResult, setBatchResult] = useState<BatchScanResponse | null>(null);
 
   // Confirmation State
   const [isConfirming, setIsConfirming] = useState(false);
@@ -75,13 +94,15 @@ export default function MobileScannerPage() {
   }, [checkHealth]);
 
   // Handle capture from live camera or file picker
-  const handleImageCaptured = (file: File) => {
+  const handleImageCaptured = (file: File, source: CaptureSource = "upload") => {
     setCapturedFile(file);
+    setCaptureSource(source);
     setScanError(null);
     setCurrentState("PREVIEW");
   };
 
-  // Submit image to backend API
+  // Submit image to backend API. A mixed scene goes to the detector pipeline and a
+  // single item keeps using the existing whole-image classification endpoint.
   const handleAnalyzeImage = async () => {
     if (!capturedFile) return;
 
@@ -89,6 +110,13 @@ export default function MobileScannerPage() {
     setScanError(null);
 
     try {
+      if (scanMode === "mixed") {
+        const result = await submitBatchScan(capturedFile, captureSource);
+        setBatchResult(result);
+        setCurrentState("MIXED_REVIEW");
+        return;
+      }
+
       const result = await submitScan(capturedFile);
       setClassificationResult(result);
       // Reset idempotency key for this new scan
@@ -98,13 +126,15 @@ export default function MobileScannerPage() {
       const errorMessage =
         err instanceof ApiError
           ? err.message
+          : scanMode === "mixed"
+          ? "Failed to analyze the scene. Please ensure the backend server is reachable."
           : "Failed to classify image. Please ensure the backend server is reachable.";
       setScanError(errorMessage);
       setCurrentState("PREVIEW");
     }
   };
 
-  // Confirm and commit item to Digital Twin
+  // Confirm and commit a single item to the Digital Twin
   const handleConfirmClassification = async (payload: ScanConfirmationRequest) => {
     if (!classificationResult) return;
 
@@ -149,6 +179,7 @@ export default function MobileScannerPage() {
   const handleResetToScanner = () => {
     setCapturedFile(null);
     setClassificationResult(null);
+    setBatchResult(null);
     setConfirmationResult(null);
     setScanError(null);
     setConfirmationError(null);
@@ -156,6 +187,15 @@ export default function MobileScannerPage() {
     setLastConfirmationPayload(null);
     setCurrentState("CAMERA");
   };
+
+  const handleModeChange = (mode: ScanMode) => {
+    if (mode === scanMode) return;
+    setScanMode(mode);
+    setScanError(null);
+    setCurrentState("CAMERA");
+  };
+
+  const isMixedMode = scanMode === "mixed";
 
   return (
     <div className="w-full min-h-screen flex flex-col items-center justify-start bg-slate-50 dark:bg-slate-950 px-4 py-4 sm:py-8 safe-top safe-bottom">
@@ -174,6 +214,10 @@ export default function MobileScannerPage() {
             </p>
           </div>
         </div>
+
+        <Link href="/dashboard" className="text-xs font-semibold text-brand-700 hover:text-brand-600 dark:text-brand-300">
+          Digital Twin
+        </Link>
 
         {/* Backend Connectivity Status Pill */}
         <button
@@ -209,6 +253,48 @@ export default function MobileScannerPage() {
           )}
         </button>
       </header>
+
+      {/* Scanning Mode Switcher (Single Item vs Mixed Scene) when idle */}
+      {(currentState === "CAMERA" || currentState === "UPLOAD") && (
+        <div className="w-full max-w-md flex bg-slate-200/70 dark:bg-slate-800 p-1 rounded-xl mb-2 text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => handleModeChange("single")}
+            aria-pressed={!isMixedMode}
+            className={`flex-1 min-h-[44px] py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+              !isMixedMode
+                ? "bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            }`}
+            aria-label="Scan one waste item at a time"
+          >
+            <Package className="w-4 h-4" />
+            Single Item
+          </button>
+          <button
+            type="button"
+            onClick={() => handleModeChange("mixed")}
+            aria-pressed={isMixedMode}
+            className={`flex-1 min-h-[44px] py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+              isMixedMode
+                ? "bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+            }`}
+            aria-label="Scan a mixed scene containing several waste items"
+          >
+            <Layers className="w-4 h-4" />
+            Mixed Scene
+          </button>
+        </div>
+      )}
+
+      {/* Mode Explanation Banner */}
+      {(currentState === "CAMERA" || currentState === "UPLOAD") && isMixedMode && (
+        <p className="w-full max-w-md mb-3 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+          Detects each waste item separately and marks uncertain detections for review. Detected
+          items are not inventory until you confirm them.
+        </p>
+      )}
 
       {/* Mode Switcher (Camera vs Upload) when idle */}
       {(currentState === "CAMERA" || currentState === "UPLOAD") && (
@@ -251,7 +337,9 @@ export default function MobileScannerPage() {
         >
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
           <div className="flex-1">
-            <p className="font-semibold">Classification Error</p>
+            <p className="font-semibold">
+              {isMixedMode ? "Scene Analysis Error" : "Classification Error"}
+            </p>
             <p className="mt-0.5 text-red-600 dark:text-red-300">{scanError}</p>
           </div>
         </div>
@@ -263,13 +351,14 @@ export default function MobileScannerPage() {
           onCapture={handleImageCaptured}
           onError={(msg) => console.warn(msg)}
           onFallbackToUpload={() => setCurrentState("UPLOAD")}
+          autoCaptureAvailable={isMixedMode}
         />
       )}
 
       {/* State 3: Upload Fallback */}
       {currentState === "UPLOAD" && (
         <UploadFallback
-          onFileSelected={handleImageCaptured}
+          onFileSelected={(file) => handleImageCaptured(file, "upload")}
           onSwitchToLiveCamera={() => setCurrentState("CAMERA")}
           canUseLiveCamera={true}
         />
@@ -282,6 +371,12 @@ export default function MobileScannerPage() {
           onRetake={handleResetToScanner}
           onSubmit={handleAnalyzeImage}
           errorMessage={scanError}
+          submitLabel={isMixedMode ? "Detect Items" : "Analyze Waste"}
+          hintText={
+            isMixedMode
+              ? "Lay the items out so they are visible and not heavily overlapping, then detect each one."
+              : "Ensure the item is visible and clearly lit for accurate computer vision classification."
+          }
         />
       )}
 
@@ -301,6 +396,16 @@ export default function MobileScannerPage() {
           isConfirming={isConfirming}
           confirmationError={confirmationError}
           onRetryConfirmation={handleRetryConfirmation}
+        />
+      )}
+
+      {/* Mixed-scene batch review screen */}
+      {currentState === "MIXED_REVIEW" && batchResult && capturedFile && (
+        <BatchScanView
+          imageFile={capturedFile}
+          result={batchResult}
+          onSubmit={confirmBatch}
+          onScanAnother={handleResetToScanner}
         />
       )}
 

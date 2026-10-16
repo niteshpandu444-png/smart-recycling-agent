@@ -93,6 +93,68 @@ class _DefaultMaterialEntryResponse(BaseModel):
 MaterialEntryResponse = _get_or_default("MaterialEntryResponse", _DefaultMaterialEntryResponse)
 
 
+# ----------------- BATCH CONFIRMATION SCHEMAS -----------------
+#
+# A batch confirmation applies the existing single-item confirmation workflow to
+# each accepted item independently. Each item keeps its own idempotency key and
+# its own transaction, so a bin that is full or an item that was already
+# confirmed fails only for that item. Rejecting a whole batch because one bin
+# overflowed would silently discard items the user did accept.
+
+
+class _DefaultBatchConfirmItemRequest(BaseModel):
+    scan_id: str
+    confirmed_category: str
+    item_id: Optional[str] = None
+    quantity: float = Field(default=1.0, ge=0)
+    unit: str = Field(default="items")
+    destination_bin_id: Optional[str] = None
+    confirmation_source: str = Field(default="model_accepted")
+    description: Optional[str] = None
+    verification_answers: Optional[Dict[str, Any]] = None
+    idempotency_key: Optional[str] = None
+
+
+BatchConfirmItemRequest = _get_or_default(
+    "BatchConfirmItemRequest", _DefaultBatchConfirmItemRequest
+)
+
+
+class _DefaultBatchConfirmRequest(BaseModel):
+    batch_id: Optional[str] = None
+    items: List[BatchConfirmItemRequest] = Field(min_length=1, max_length=25)
+
+
+BatchConfirmRequest = _get_or_default("BatchConfirmRequest", _DefaultBatchConfirmRequest)
+
+
+class _DefaultBatchConfirmResultItem(BaseModel):
+    item_id: Optional[str] = None
+    scan_id: str
+    status: str  # confirmed | already_confirmed | failed
+    material_id: Optional[str] = None
+    confirmed_category: Optional[str] = None
+    destination: Optional[str] = None
+    processing_status: Optional[str] = None
+    error: Optional[str] = None
+
+
+BatchConfirmResultItem = _get_or_default(
+    "BatchConfirmResultItem", _DefaultBatchConfirmResultItem
+)
+
+
+class _DefaultBatchConfirmResponse(BaseModel):
+    batch_id: Optional[str] = None
+    confirmed_count: int
+    already_confirmed_count: int
+    failed_count: int
+    results: List[BatchConfirmResultItem]
+
+
+BatchConfirmResponse = _get_or_default("BatchConfirmResponse", _DefaultBatchConfirmResponse)
+
+
 class _DefaultReclassifyRequest(BaseModel):
     target_category: str
     target_bin_id: Optional[str] = None
@@ -151,6 +213,26 @@ BinTransferRequest = _get_or_default("BinTransferRequest", _DefaultBinTransferRe
 
 # ----------------- TWIN SCHEMAS -----------------
 
+
+class _DefaultBatchActivity(BaseModel):
+    """One mixed-waste scene scan and how its items were resolved.
+
+    ``detection_count`` counts detected objects. ``confirmed_count`` counts the
+    subset that a user confirmed into inventory, so the gap between the two is
+    visible rather than implied.
+    """
+
+    batch_id: str
+    created_at: datetime
+    detection_count: int
+    review_required_count: int
+    confirmed_count: int
+    pending_review_count: int
+
+
+BatchActivity = _get_or_default("BatchActivity", _DefaultBatchActivity)
+
+
 class _DefaultDigitalTwinSnapshot(BaseModel):
     timestamp: datetime
     total_confirmed_items: float
@@ -158,6 +240,14 @@ class _DefaultDigitalTwinSnapshot(BaseModel):
     bins: List[BinSnapshot]
     processing_totals: Dict[str, float]
     pending_verification_count: int
+    # Mixed-waste batch activity. These count *detected* items and pending
+    # review work; they never inflate confirmed inventory.
+    batch_scan_count: int = 0
+    detected_item_totals: Dict[str, float] = Field(default_factory=dict)
+    needs_review_scan_count: int = 0
+    confirmed_from_batch_count: int = 0
+    recent_batch_activity: List[BatchActivity] = Field(default_factory=list)
+
 
 DigitalTwinSnapshot = _get_or_default("DigitalTwinSnapshot", _DefaultDigitalTwinSnapshot)
 
@@ -306,3 +396,46 @@ class _DefaultConfusionMatrixResponse(BaseModel):
     high_risk_confusions: List[Dict[str, Any]]
 
 ConfusionMatrixResponse = _get_or_default("ConfusionMatrixResponse", _DefaultConfusionMatrixResponse)
+
+
+# ----------------- RECYCLING INTELLIGENCE AGENT SCHEMAS -----------------
+
+class _DefaultToolEvidence(BaseModel):
+    tool_name: str
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+    summary: str
+    result_preview: Optional[Dict[str, Any]] = None
+
+ToolEvidence = _get_or_default("ToolEvidence", _DefaultToolEvidence)
+
+
+class _DefaultAgentMessageRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=1000, description="User prompt or inquiry for the recycling intelligence agent")
+    conversation_id: Optional[str] = Field(default=None, max_length=128)
+    context: Optional[Dict[str, Any]] = Field(default=None, description="Optional minimal client context; never trusted over database")
+
+AgentMessageRequest = _get_or_default("AgentMessageRequest", _DefaultAgentMessageRequest)
+
+
+class _DefaultAgentMessageResponse(BaseModel):
+    agent_mode: str = Field(description="'live_llm' | 'deterministic_fallback' | 'disabled'")
+    answer: str
+    is_fallback: bool
+    tool_calls: List[ToolEvidence] = Field(default_factory=list)
+    recommended_action: Optional[str] = None
+    supporting_facts: Dict[str, Any] = Field(default_factory=dict)
+    model_identifier: Optional[str] = None
+    timestamp: datetime
+
+AgentMessageResponse = _get_or_default("AgentMessageResponse", _DefaultAgentMessageResponse)
+
+
+class _DefaultAgentStatusResponse(BaseModel):
+    enabled: bool
+    agent_mode: str  # 'live_llm' | 'deterministic_fallback'
+    provider_configured: bool
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    available_tools: List[str]
+
+AgentStatusResponse = _get_or_default("AgentStatusResponse", _DefaultAgentStatusResponse)

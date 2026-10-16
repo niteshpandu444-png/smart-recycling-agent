@@ -32,7 +32,7 @@ interface ClassificationCardProps {
   onRetryConfirmation: () => void;
 }
 
-const CATEGORY_STYLES: Record<
+export const CATEGORY_STYLES: Record<
   MaterialCategory,
   { label: string; bg: string; text: string; border: string; description: string }
 > = {
@@ -108,7 +108,7 @@ const CATEGORY_STYLES: Record<
   },
 };
 
-const ALL_CATEGORIES: MaterialCategory[] = [
+export const ALL_CATEGORIES: MaterialCategory[] = [
   "plastic", "paper", "metal", "glass", "organic", "biodegradable",
   "compostable", "holding", "hazardous", "reusable",
 ];

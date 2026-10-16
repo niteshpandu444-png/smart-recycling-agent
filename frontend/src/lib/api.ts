@@ -14,15 +14,22 @@
 import {
   HealthResponse,
   ModelStatusResponse,
+  DetectorStatusResponse,
   ScanClassificationResponse,
   ScanConfirmationRequest,
   ScanConfirmationResponse,
+  BatchScanResponse,
+  BatchConfirmRequest,
+  BatchConfirmResponse,
   DigitalTwinSnapshot,
   EventHistoryResponse,
   RecommendationsResponse,
   RecommendationItem,
   GenerateRecommendationsRequest,
   ApiErrorResponse,
+  AgentMessageRequest,
+  AgentMessageResponse,
+  AgentStatusResponse,
 } from "@/types/api";
 
 /**
@@ -53,6 +60,17 @@ export function getApiBaseUrl(): string {
     return envUrl.replace(/\/+$/, "");
   }
   return "http://localhost:8000";
+}
+
+/** Resolves the backend's documented WebSocket endpoint (`/ws`). */
+export function getWebSocketUrl(): string {
+  const configuredUrl = process.env.NEXT_PUBLIC_WS_URL;
+  const url = new URL(configuredUrl || getApiBaseUrl());
+  url.protocol = url.protocol === "https:" || url.protocol === "wss:" ? "wss:" : "ws:";
+  url.pathname = "/ws";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
 }
 
 /**
@@ -294,6 +312,88 @@ export async function confirmScan(
 }
 
 /**
+ * GET /api/model/detector/status
+ * Readiness and licence information for the mixed-waste object detector.
+ */
+export async function getDetectorStatus(): Promise<DetectorStatusResponse> {
+  const url = `${getApiBaseUrl()}/api/model/detector/status`;
+  const response = await fetchWithTimeout(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    timeoutMs: 5000,
+  });
+  return handleResponse<DetectorStatusResponse>(response);
+}
+
+/**
+ * POST /api/scans/batch
+ * Detects and analyses every waste object in one mixed-waste image.
+ *
+ * A successful response with zero items is a genuine empty detection result, not
+ * an error, and callers must render it as such. No inventory changes here: each
+ * returned item is a pending scan that must be confirmed separately.
+ */
+export async function submitBatchScan(
+  file: File | Blob,
+  source: "upload" | "camera" = "upload"
+): Promise<BatchScanResponse> {
+  const url = `${getApiBaseUrl()}/api/scans/batch`;
+  const formData = new FormData();
+  formData.append("file", file, file instanceof File ? file.name : "mixed-scene.jpg");
+  formData.append("source", source);
+
+  const response = await fetchWithTimeout(url, {
+    method: "POST",
+    body: formData,
+    headers: {
+      Accept: "application/json",
+    },
+    timeoutMs: 45000, // Detector inference plus a per-item crop cross-check
+  });
+
+  return handleResponse<BatchScanResponse>(response);
+}
+
+/**
+ * POST /api/materials/confirm-batch
+ * Commits reviewed items, one item at a time, through the single-item workflow.
+ *
+ * Partial outcomes are normal. Callers must read `failed_count` and each
+ * result's status rather than treating HTTP 200 as a complete success.
+ */
+export async function confirmBatch(payload: BatchConfirmRequest): Promise<BatchConfirmResponse> {
+  if (!payload.items || payload.items.length === 0) {
+    throw new ApiError("Select at least one item before confirming.", 400, "EMPTY_BATCH");
+  }
+
+  const url = `${getApiBaseUrl()}/api/materials/confirm-batch`;
+  const response = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+    timeoutMs: 30000,
+  });
+
+  const result = await handleResponse<BatchConfirmResponse>(response);
+  if (
+    !result ||
+    !Array.isArray(result.results) ||
+    typeof result.confirmed_count !== "number" ||
+    typeof result.failed_count !== "number"
+  ) {
+    throw new ApiError(
+      "The backend did not return a valid batch confirmation result.",
+      response.status,
+      "INVALID_BATCH_CONFIRMATION_RESPONSE"
+    );
+  }
+  return result;
+}
+
+/**
  * GET /api/twin/snapshot
  * Retrieves the current state of Digital Twin material inventory and bins.
  */
@@ -353,4 +453,38 @@ export async function generateRecommendations(
     timeoutMs: 25000,
   });
   return handleResponse<RecommendationItem>(response);
+}
+
+/**
+ * POST /api/agent/message
+ * Submits an operational query to the backend Recycling Intelligence Agent.
+ */
+export async function sendAgentMessage(
+  payload: AgentMessageRequest
+): Promise<AgentMessageResponse> {
+  const url = `${getApiBaseUrl()}/api/agent/message`;
+  const response = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+    timeoutMs: 35000,
+  });
+  return handleResponse<AgentMessageResponse>(response);
+}
+
+/**
+ * GET /api/agent/status
+ * Retrieves operational status of the Recycling Intelligence Agent.
+ */
+export async function getAgentStatus(): Promise<AgentStatusResponse> {
+  const url = `${getApiBaseUrl()}/api/agent/status`;
+  const response = await fetchWithTimeout(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    timeoutMs: 10000,
+  });
+  return handleResponse<AgentStatusResponse>(response);
 }

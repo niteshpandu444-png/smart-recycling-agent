@@ -89,6 +89,24 @@ export interface MaterialFlowNode {
 }
 
 /**
+ * One mixed-waste scene scan and how its items were resolved.
+ *
+ * `detectionCount` counts detected objects, while `confirmedCount` counts the
+ * subset a user actually confirmed into inventory. The gap between them is the
+ * point of showing both: a detection is not a confirmed item.
+ */
+export interface DashboardBatchActivity {
+  batchId: string;
+  createdAt: string;
+  detectionCount: number;
+  reviewRequiredCount: number;
+  /** Detected items confirmed into inventory. */
+  confirmedCount: number;
+  /** Detected items still flagged for review. */
+  pendingReviewCount: number;
+}
+
+/**
  * Cumulative metrics and processing summaries.
  */
 export interface DashboardOverviewMetrics {
@@ -107,6 +125,13 @@ export interface DashboardOverviewMetrics {
   }[];
   /** ISO timestamp of snapshot */
   snapshotTimestamp: string;
+  /** Mixed-waste batch activity. These count detected items, never inventory. */
+  batchScanCount?: number;
+  detectedItemCount?: number;
+  needsReviewScanCount?: number;
+  confirmedFromBatchCount?: number;
+  detectedCategoryBreakdown?: { category: DashboardMaterialCategory; count: number }[];
+  recentBatches?: DashboardBatchActivity[];
 }
 
 /**
@@ -142,8 +167,10 @@ export interface DashboardRecommendation {
   id: string;
   title: string;
   description: string;
-  severity: "low" | "medium" | "high" | "critical";
-  actionType: "empty_bin" | "reroute" | "material_reuse" | "maintenance" | string;
+  /** Present only when the backend supplies an explicit severity. */
+  severity?: "low" | "medium" | "high" | "critical" | string;
+  /** Present only when the backend supplies an explicit action type. */
+  actionType?: string;
   createdAt: string;
   /** Generation source: 'llm' | 'deterministic' | 'rule_based' */
   generationMethod?: string;
@@ -163,6 +190,9 @@ export type DashboardConnectionState =
   | "stale"
   | "unavailable";
 
+/** Availability of the REST endpoints used to load dashboard data. */
+export type DashboardRestApiState = "checking" | "available" | "unavailable";
+
 /**
  * Top-level view model passed to the main DashboardView presentation component.
  */
@@ -177,8 +207,10 @@ export interface DashboardViewProps {
   events?: DashboardEvent[];
   /** Backend AI recommendations */
   recommendations?: DashboardRecommendation[];
-  /** Current connection / backend health state */
+  /** WebSocket connection state. */
   connectionState: DashboardConnectionState;
+  /** Availability of the REST endpoints used to load dashboard data. */
+  restApiState: DashboardRestApiState;
   /** ISO timestamp of last successful sync with backend */
   lastSyncTimestamp?: string | null;
   /** Loading flag during initial fetch or manual refresh */

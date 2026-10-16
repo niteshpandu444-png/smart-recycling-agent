@@ -1,12 +1,15 @@
 import React from "react";
+import Link from "next/link";
 import { DashboardViewProps } from "./dashboard.types";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { OverviewMetrics } from "./OverviewMetrics";
+import { BatchActivityPanel } from "./BatchActivityPanel";
 import { VirtualBinGrid } from "./VirtualBinGrid";
 import { MaterialFlow } from "./MaterialFlow";
 import { RecentEvents } from "./RecentEvents";
 import { RecommendationPanel } from "./RecommendationPanel";
-import { LeafIcon, AlertTriangleIcon, RefreshIcon } from "./DashboardIcons";
+import { RecyclingAgentPanel } from "./RecyclingAgentPanel";
+import { LeafIcon, AlertTriangleIcon } from "./DashboardIcons";
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   metrics,
@@ -15,6 +18,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   events = [],
   recommendations = [],
   connectionState,
+  restApiState,
   lastSyncTimestamp,
   isLoading = false,
   errorMessage,
@@ -22,7 +26,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onGenerateRecommendations,
   isGeneratingRecommendations = false,
 }) => {
-  const isOffline = connectionState === "offline" || connectionState === "unavailable";
+  const isOffline = restApiState === "unavailable";
 
   return (
     <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-4 sm:px-6 lg:px-8 py-6 safe-top safe-bottom">
@@ -43,15 +47,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Real-Time Material Flow, Capacity Twin Telemetry & AI Sorting Guidance
+                Persisted material flow, bin telemetry, and deterministic guidance
               </p>
             </div>
           </div>
 
           {/* Connection Status & Sync Controls */}
           <div className="flex items-center gap-3 self-start md:self-auto">
+            <Link href="/" className="text-xs font-semibold text-brand-700 hover:text-brand-600 dark:text-brand-300">
+              Open scanner
+            </Link>
             <ConnectionStatus
               connectionState={connectionState}
+              restApiState={restApiState}
               lastSyncTimestamp={lastSyncTimestamp}
               isLoading={isLoading}
               onRefresh={onRefresh}
@@ -88,7 +96,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Section 1: Overview Telemetry & Material Distribution Bar */}
         <OverviewMetrics metrics={metrics} isLoading={isLoading} />
 
-        {/* Section 2: Main Operational Workspace (Laptop 2-Column Split) */}
+        {/* Section 2: Mixed-Waste Batch Activity (detected vs confirmed) */}
+        <BatchActivityPanel metrics={metrics} isLoading={isLoading} />
+
+        {/* Section 3: Main Operational Workspace (Laptop 2-Column Split) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column (8 cols): Virtual Bin Grid + Material Flow */}
           <div className="lg:col-span-8 space-y-6">
@@ -96,8 +107,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <MaterialFlow flows={materialFlows} isLoading={isLoading} />
           </div>
 
-          {/* Right Rail (4 cols): AI Recommendations + Recent Audit Log */}
+          {/* Right Rail (4 cols): Recycling Intelligence Agent + Recommendations + Recent Audit Log */}
           <div className="lg:col-span-4 space-y-6">
+            <RecyclingAgentPanel canQuery={!isOffline} />
             <RecommendationPanel
               recommendations={recommendations}
               isLoading={isLoading}
@@ -115,9 +127,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             Smart Recycling Agent • Code Clash 2.0 • Digital Twin Material Flow Protocol
           </p>
           <div className="flex items-center gap-2 font-mono">
-            <span>State Isolation: Phase 1 Complete</span>
-            <span>•</span>
-            <span>Ready for Shared Integration</span>
+            <span>State source: backend persistence</span>
           </div>
         </footer>
       </div>

@@ -48,3 +48,9 @@ Thumbs.db
 
 # Local computer-vision test images
 backend/test_images/
+
+# SQLite write-ahead sidecars created at runtime
+*.db-wal
+*.db-shm
+*.sqlite3-wal
+*.sqlite3-shm

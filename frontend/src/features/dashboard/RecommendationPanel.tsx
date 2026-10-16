@@ -1,6 +1,6 @@
 import React from "react";
 import { DashboardRecommendation } from "./dashboard.types";
-import { SparklesIcon, ShieldAlertIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon, RefreshIcon } from "./DashboardIcons";
+import { SparklesIcon, ShieldAlertIcon, AlertTriangleIcon, CheckCircle2Icon, InfoIcon } from "./DashboardIcons";
 
 interface RecommendationPanelProps {
   recommendations?: DashboardRecommendation[];
@@ -14,6 +14,12 @@ const SEVERITY_CONFIG: Record<
   string,
   { label: string; badgeClass: string; borderClass: string; icon: React.ReactNode }
 > = {
+  unspecified: {
+    label: "Recommendation",
+    badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    borderClass: "border-slate-200 dark:border-slate-800",
+    icon: <InfoIcon className="w-4 h-4 text-slate-500" />,
+  },
   critical: {
     label: "Critical Action",
     badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
@@ -53,7 +59,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
         <div className="flex items-center gap-2">
           <SparklesIcon className="w-4 h-4 text-amber-500" />
           <h2 id="recommendations-title" className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            AI Operations & Routing Insights
+            Recommendations
           </h2>
         </div>
 
@@ -65,7 +71,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
               onClick={() => onGenerateRecommendations()}
               disabled={isGenerating || !canGenerate}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-98"
-              aria-label="Synthesize new recommendations via AI backend"
+              aria-label="Generate recommendations from current backend state"
             >
               <SparklesIcon className={`w-3.5 h-3.5 ${isGenerating ? "animate-spin" : ""}`} />
               <span>{isGenerating ? "Synthesizing..." : "Generate Insights"}</span>
@@ -96,7 +102,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
           </div>
         ) : (
           recommendations.map((rec) => {
-            const config = SEVERITY_CONFIG[rec.severity] || SEVERITY_CONFIG.low;
+            const config = SEVERITY_CONFIG[rec.severity ?? "unspecified"] || SEVERITY_CONFIG.unspecified;
 
             return (
               <div
@@ -122,7 +128,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
 
                 {/* Supporting Metadata & Generation Provenance */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                  <span>Action: <strong className="text-slate-600 dark:text-slate-300">{rec.actionType}</strong></span>
+                  {rec.actionType && <span>Action: <strong className="text-slate-600 dark:text-slate-300">{rec.actionType}</strong></span>}
                   {rec.generationMethod && (
                     <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
                       Method: {rec.generationMethod}
