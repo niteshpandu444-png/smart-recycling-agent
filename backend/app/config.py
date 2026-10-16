@@ -13,6 +13,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 DEFAULT_CORS_ORIGINS = (
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://smart-recycling-agent-frontend-419humuf5.vercel.app",
 )
 
 

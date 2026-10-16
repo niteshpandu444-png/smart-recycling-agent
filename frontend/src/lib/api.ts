@@ -57,16 +57,20 @@ export class ApiError extends Error {
  */
 export function getApiBaseUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (envUrl && envUrl.trim().length > 0) {
-    return envUrl.replace(/\/+$/, "");
-  }
-  return "http://localhost:8000";
+  const configuredUrl = envUrl?.trim();
+  const fallbackUrl = process.env.NODE_ENV === "development"
+    ? "http://localhost:8000"
+    : "https://smart-recycling-agent-production.up.railway.app";
+  const baseUrl = (configuredUrl || fallbackUrl).replace(/\/+$/, "");
+  // API methods below own their `/api/...` paths. Accept a configured root
+  // with or without a trailing `/api`, but never generate `/api/api/...`.
+  return baseUrl.replace(/\/api$/i, "");
 }
 
 /** Resolves the backend's documented WebSocket endpoint (`/ws`). */
 export function getWebSocketUrl(): string {
   const configuredUrl = process.env.NEXT_PUBLIC_WS_URL;
-  const url = new URL(configuredUrl || getApiBaseUrl());
+  const url = new URL(configuredUrl?.trim() || getApiBaseUrl());
   url.protocol = url.protocol === "https:" || url.protocol === "wss:" ? "wss:" : "ws:";
   url.pathname = "/ws";
   url.search = "";

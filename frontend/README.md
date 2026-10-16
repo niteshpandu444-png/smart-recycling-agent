@@ -71,6 +71,12 @@ Configurable variables:
 - `NEXT_PUBLIC_WS_URL`: WebSocket address for live Digital Twin event streaming (e.g. `ws://localhost:8000/ws`).
 - `NEXT_PUBLIC_DEV_MODE`: Set to `true` to display developer diagnostics in the UI (such as active idempotency keys). Defaults to `false`.
 
+Production builds use `frontend/.env.production` to target the Railway API over
+HTTPS and its `/ws` endpoint over WSS. Keep these same public URL values in the
+Vercel Production environment settings when managing deployment configuration
+there. API methods add their existing `/api/...` paths, while the WebSocket
+client normalizes its configured URL to `/ws` exactly once.
+
 ---
 
 ## Phone Testing over HTTPS & Local Network

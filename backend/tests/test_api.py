@@ -251,6 +251,19 @@ async def test_cors_allows_local_frontend_and_required_headers():
 
 
 @pytest.mark.anyio
+async def test_cors_allows_deployed_vercel_frontend():
+    origin = "https://smart-recycling-agent-frontend-419humuf5.vercel.app"
+    assert origin in CORS_ORIGINS
+    result = await api_request(
+        "GET",
+        "/api/health",
+        headers={"Origin": origin},
+    )
+    assert result.status_code == 200
+    assert result.headers["access-control-allow-origin"] == origin
+
+
+@pytest.mark.anyio
 async def test_cors_does_not_grant_disallowed_origin():
     origin = "https://untrusted.example"
     result = await api_request(
