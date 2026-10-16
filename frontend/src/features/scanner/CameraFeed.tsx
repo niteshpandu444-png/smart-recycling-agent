@@ -47,6 +47,8 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
     file: File;
   } | null>(null);
   const isScanningRef = useRef(false);
+  const liveConfirmStartedRef = useRef(false);
+  const [isConfirmingLive, setIsConfirmingLive] = useState(false);
 
   // Check if getUserMedia is available in current browser context
   const isGetUserMediaSupported =
@@ -150,12 +152,12 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
     };
   }, [startCamera]);
 
-  // Continuous real-time frame detection loop
+  // Continuous real-time frame detection loop. Live frames use the transient
+  // preview endpoint; only a user-selected frame reaches the persistent scan API.
   useEffect(() => {
-    if (!isAutoDetecting || isInitializing || Boolean(cameraError)) {
-      return;
-    }
+    if (!isAutoDetecting || isInitializing || Boolean(cameraError)) return;
 
+    let active = true;
     const intervalId = setInterval(() => {
       if (isScanningRef.current) return;
       const video = videoRef.current;
@@ -168,36 +170,43 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
       if (!ctx) return;
 
       ctx.drawImage(video, 0, 0, 320, 240);
-      canvas.toBlob(
-        async (blob) => {
-          if (!blob) return;
-          const file = new File([blob], `live-scan-${Date.now()}.jpg`, {
-            type: "image/jpeg",
-          });
-          isScanningRef.current = true;
-          setIsAnalyzingLive(true);
-          try {
-            const result = await previewScan(file);
-            if (result && (result.predicted_item || result.classification_status === "uncertain")) {
-              setLiveResult({ result, file });
+      isScanningRef.current = true;
+      setIsAnalyzingLive(true);
+      try {
+        canvas.toBlob(
+          async (blob) => {
+            if (!blob) {
+              isScanningRef.current = false;
+              if (active) setIsAnalyzingLive(false);
+              return;
             }
-          } catch {
-            // Silently ignore intermittent background scan errors
-          } finally {
-            isScanningRef.current = false;
-            setIsAnalyzingLive(false);
-          }
-        },
-        "image/jpeg",
-        0.82
-      );
+            const file = new File([blob], `live-scan-${Date.now()}.jpg`, { type: "image/jpeg" });
+            try {
+              const result = await previewScan(file);
+              if (active && (result.predicted_item || result.classification_status === "uncertain")) {
+                setLiveResult({ result, file });
+              }
+            } catch {
+              // Keep the camera preview running through intermittent API failures.
+            } finally {
+              isScanningRef.current = false;
+              if (active) setIsAnalyzingLive(false);
+            }
+          },
+          "image/jpeg",
+          0.82,
+        );
+      } catch {
+        isScanningRef.current = false;
+        if (active) setIsAnalyzingLive(false);
+      }
     }, 1500);
 
     return () => {
+      active = false;
       clearInterval(intervalId);
     };
   }, [isAutoDetecting, isInitializing, cameraError]);
-
   // Flip between rear and front cameras
   const toggleFacingMode = () => {
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
@@ -378,6 +387,9 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      if (liveConfirmStartedRef.current) return;
+                      liveConfirmStartedRef.current = true;
+                      setIsConfirmingLive(true);
                       stopStream();
                       if (onLiveConfirm) {
                         onLiveConfirm(liveResult.file);
@@ -385,10 +397,11 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
                         onCapture(liveResult.file, "camera");
                       }
                     }}
-                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 active:scale-95 text-white text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all shrink-0"
+                    disabled={isConfirmingLive}
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 active:scale-95 text-white text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
                     aria-label="Confirm detected waste item"
                   >
-                    <span>Confirm</span>
+                    <span>{isConfirmingLive ? "Submitting…" : "Confirm"}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>

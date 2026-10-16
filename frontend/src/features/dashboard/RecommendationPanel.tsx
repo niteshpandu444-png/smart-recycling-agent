@@ -14,12 +14,6 @@ const SEVERITY_CONFIG: Record<
   string,
   { label: string; badgeClass: string; borderClass: string; icon: React.ReactNode }
 > = {
-  unspecified: {
-    label: "Recommendation",
-    badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-    borderClass: "border-slate-200 dark:border-slate-800",
-    icon: <InfoIcon className="w-4 h-4 text-slate-500" />,
-  },
   critical: {
     label: "Critical Action",
     badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
@@ -33,16 +27,22 @@ const SEVERITY_CONFIG: Record<
     icon: <AlertTriangleIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />,
   },
   medium: {
-    label: "Operational Advisory",
-    badgeClass: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",
-    borderClass: "border-blue-300 dark:border-blue-800",
-    icon: <InfoIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />,
+    label: "Medium",
+    badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    borderClass: "border-slate-200 dark:border-slate-800",
+    icon: <InfoIcon className="w-4 h-4 text-slate-600 dark:text-slate-400" />,
   },
   low: {
-    label: "Informational",
+    label: "Low",
     badgeClass: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300",
     borderClass: "border-slate-200 dark:border-slate-800",
     icon: <CheckCircle2Icon className="w-4 h-4 text-slate-500" />,
+  },
+  unknown: {
+    label: "Priority not provided",
+    badgeClass: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    borderClass: "border-slate-200 dark:border-slate-800",
+    icon: <InfoIcon className="w-4 h-4 text-slate-500" />,
   },
 };
 
@@ -56,10 +56,9 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
   return (
     <section aria-labelledby="recommendations-title" className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <SparklesIcon className="w-4 h-4 text-amber-500" />
-          <h2 id="recommendations-title" className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Recommendations
+      <div className="flex items-center gap-2">
+          <h2 id="recommendations-title" className="text-sm font-semibold text-slate-900">
+            Backend recommendations
           </h2>
         </div>
 
@@ -70,44 +69,39 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
               type="button"
               onClick={() => onGenerateRecommendations()}
               disabled={isGenerating || !canGenerate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-98"
-              aria-label="Generate recommendations from current backend state"
+              className="inline-flex min-h-9 items-center gap-1.5 border border-emerald-800 bg-emerald-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+              aria-label="Request a recommendation from the backend"
+              title={canGenerate ? "Request a recommendation from the backend" : "Available when the backend is connected"}
             >
               <SparklesIcon className={`w-3.5 h-3.5 ${isGenerating ? "animate-spin" : ""}`} />
-              <span>{isGenerating ? "Synthesizing..." : "Generate Insights"}</span>
+              <span>{isGenerating ? "Requesting…" : "Generate recommendation"}</span>
             </button>
           ) : (
-            <span
-              className="text-[11px] text-slate-400 italic"
-              title="Awaiting backend integration hook"
-            >
-              Synthesis hook unmounted
-            </span>
+            null
           )}
         </div>
       </div>
 
       <div className="space-y-3">
         {isLoading && recommendations.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 animate-pulse h-48" aria-busy="true" />
+          <div className="h-32 border border-slate-200 bg-white" aria-busy="true" aria-label="Loading recommendations" />
         ) : recommendations.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 text-center text-slate-400">
-            <SparklesIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              No Active Recommendations
+          <div className="border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <h3 className="font-medium text-slate-800">
+              No recommendations returned
             </h3>
             <p className="text-[11px] text-slate-400 max-w-sm mx-auto mt-1">
-              Backend recommendations are generated when bin capacity thresholds are reached or material imbalances are detected.
+              The backend has not returned any recommendation records.
             </p>
           </div>
         ) : (
           recommendations.map((rec) => {
-            const config = SEVERITY_CONFIG[rec.severity ?? "unspecified"] || SEVERITY_CONFIG.unspecified;
+            const config = SEVERITY_CONFIG[rec.severity ?? "unknown"] || SEVERITY_CONFIG.unknown;
 
             return (
               <div
                 key={rec.id}
-                className={`bg-white dark:bg-slate-900 rounded-2xl p-4 border ${config.borderClass} shadow-sm space-y-2`}
+                className={`space-y-2 border bg-white p-4 ${config.borderClass}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -117,7 +111,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
                     </h3>
                   </div>
 
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${config.badgeClass}`}>
+                  <span className={`border px-2 py-1 text-[10px] font-medium ${config.badgeClass}`}>
                     {config.label}
                   </span>
                 </div>
@@ -128,7 +122,10 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
 
                 {/* Supporting Metadata & Generation Provenance */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                  {rec.actionType && <span>Action: <strong className="text-slate-600 dark:text-slate-300">{rec.actionType}</strong></span>}
+                  <span>Action: <strong className="text-slate-600 dark:text-slate-300">{rec.actionType || "Unavailable"}</strong></span>
+                  {rec.status && (
+                    <span>Status: <strong className="text-slate-600 dark:text-slate-300">{rec.status}</strong></span>
+                  )}
                   {rec.generationMethod && (
                     <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
                       Method: {rec.generationMethod}

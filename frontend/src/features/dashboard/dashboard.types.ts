@@ -21,7 +21,8 @@ export type DashboardMaterialCategory =
   | "reusable"
   | "biodegradable"
   | "hazardous"
-  | "unknown";
+  | "unknown"
+  | string;
 
 /**
  * Visual badge distinction for observed vs calculated vs virtual state.
@@ -36,7 +37,8 @@ export type BinOperationalStatus =
   | "warning"
   | "critical"
   | "maintenance"
-  | "unknown";
+  | "unknown"
+  | string;
 
 /**
  * View model representing a physical or virtual destination bin.
