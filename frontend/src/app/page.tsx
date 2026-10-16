@@ -81,6 +81,18 @@ export default function MobileScannerPage() {
     setCurrentState("PREVIEW");
   };
 
+  // Handle instant live detection from continuous camera stream
+  const handleLiveDetected = (
+    result: ScanClassificationResponse,
+    file: File
+  ) => {
+    setCapturedFile(file);
+    setClassificationResult(result);
+    setActiveIdempotencyKey(generateIdempotencyKey());
+    setScanError(null);
+    setCurrentState("CLASSIFIED");
+  };
+
   // Submit image to backend API
   const handleAnalyzeImage = async () => {
     if (!capturedFile) return;
@@ -261,6 +273,7 @@ export default function MobileScannerPage() {
       {currentState === "CAMERA" && (
         <CameraFeed
           onCapture={handleImageCaptured}
+          onLiveConfirm={handleLiveDetected}
           onError={(msg) => console.warn(msg)}
           onFallbackToUpload={() => setCurrentState("UPLOAD")}
         />
