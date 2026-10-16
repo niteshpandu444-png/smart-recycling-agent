@@ -44,7 +44,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-4 self-start md:self-auto">
-            <Link href="/" className="text-sm font-medium text-emerald-800 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
+            <Link href="/scanner" className="text-sm font-medium text-emerald-800 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
               Open scanner
             </Link>
             <ConnectionStatus
