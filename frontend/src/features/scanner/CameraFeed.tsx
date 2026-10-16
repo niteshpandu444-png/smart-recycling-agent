@@ -1,15 +1,14 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { Camera, RefreshCw, AlertCircle, Upload, SwitchCamera, Zap, ZapOff } from "lucide-react";
-import {
-  STABLE_FRAMES_REQUIRED,
-  AutoCaptureStatus,
-  useAutoCapture,
-} from "./useAutoCapture";
+import { Camera, RefreshCw, AlertCircle, Upload, SwitchCamera, ArrowRight, Zap, ZapOff } from "lucide-react";
+import { STABLE_FRAMES_REQUIRED, AutoCaptureStatus, useAutoCapture } from "./useAutoCapture";
+import { previewScan } from "@/lib/api";
+import type { ScanPreviewResponse } from "@/types/api";
 
 interface CameraFeedProps {
   onCapture: (file: File, source?: "camera" | "upload") => void;
+  onLiveConfirm?: (file: File) => void;
   onError: (errorMsg: string) => void;
   onFallbackToUpload: () => void;
   /**
@@ -29,6 +28,7 @@ const AUTO_CAPTURE_STATUS_TEXT: Record<AutoCaptureStatus, string> = {
 
 export const CameraFeed: React.FC<CameraFeedProps> = ({
   onCapture,
+  onLiveConfirm,
   onError,
   onFallbackToUpload,
   autoCaptureAvailable = false,
@@ -38,6 +38,15 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
   const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Live continuous auto-detection state
+  const [isAutoDetecting, setIsAutoDetecting] = useState(true);
+  const [isAnalyzingLive, setIsAnalyzingLive] = useState(false);
+  const [liveResult, setLiveResult] = useState<{
+    result: ScanPreviewResponse;
+    file: File;
+  } | null>(null);
+  const isScanningRef = useRef(false);
 
   // Check if getUserMedia is available in current browser context
   const isGetUserMediaSupported =
@@ -141,6 +150,54 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
     };
   }, [startCamera]);
 
+  // Continuous real-time frame detection loop
+  useEffect(() => {
+    if (!isAutoDetecting || isInitializing || Boolean(cameraError)) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      if (isScanningRef.current) return;
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || video.paused || video.ended) return;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 320;
+      canvas.height = 240;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.drawImage(video, 0, 0, 320, 240);
+      canvas.toBlob(
+        async (blob) => {
+          if (!blob) return;
+          const file = new File([blob], `live-scan-${Date.now()}.jpg`, {
+            type: "image/jpeg",
+          });
+          isScanningRef.current = true;
+          setIsAnalyzingLive(true);
+          try {
+            const result = await previewScan(file);
+            if (result && (result.predicted_item || result.classification_status === "uncertain")) {
+              setLiveResult({ result, file });
+            }
+          } catch {
+            // Silently ignore intermittent background scan errors
+          } finally {
+            isScanningRef.current = false;
+            setIsAnalyzingLive(false);
+          }
+        },
+        "image/jpeg",
+        0.82
+      );
+    }, 1500);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isAutoDetecting, isInitializing, cameraError]);
+
   // Flip between rear and front cameras
   const toggleFacingMode = () => {
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
@@ -236,9 +293,46 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
               className="w-full h-full object-cover"
             />
 
+            {/* Live Auto-Scan Status Header */}
+            <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setIsAutoDetecting((prev) => !prev)}
+                className={`min-h-[44px] px-3 py-1.5 rounded-full backdrop-blur-md border text-xs font-semibold flex items-center gap-2 transition-all shadow-md ${
+                  isAutoDetecting
+                    ? "bg-slate-900/80 border-emerald-500/50 text-emerald-400"
+                    : "bg-slate-900/80 border-slate-700 text-slate-400"
+                }`}
+                aria-label={isAutoDetecting ? "Pause auto detection" : "Enable auto detection"}
+              >
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    isAutoDetecting
+                      ? isAnalyzingLive
+                        ? "bg-brand-400 animate-ping"
+                        : "bg-emerald-400 animate-pulse"
+                      : "bg-slate-500"
+                  }`}
+                />
+                <span>
+                  {isAutoDetecting
+                    ? isAnalyzingLive
+                      ? "Analyzing Frame..."
+                      : "Live Scanner Active"
+                    : "Live Scanner Paused"}
+                </span>
+              </button>
+            </div>
+
             {/* Viewfinder Target Framing Overlay */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="relative w-3/4 h-3/4 max-w-[280px] max-h-[280px] rounded-2xl border-2 border-brand-400/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]">
+              <div
+                className={`relative w-3/4 h-3/4 max-w-[280px] max-h-[280px] rounded-2xl border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] transition-colors duration-300 ${
+                  isAnalyzingLive
+                    ? "border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4)]"
+                    : "border-brand-400/70"
+                }`}
+              >
                 {/* Target Corners */}
                 <div className="absolute -top-1 -left-1 w-5 h-5 border-t-4 border-l-4 border-brand-400 rounded-tl" />
                 <div className="absolute -top-1 -right-1 w-5 h-5 border-t-4 border-r-4 border-brand-400 rounded-tr" />
@@ -252,6 +346,54 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Floating Live Detection HUD */}
+            {liveResult && isAutoDetecting && (
+              <div
+                role="region"
+                aria-live="polite"
+                className="absolute bottom-3 left-3 right-3 z-20 bg-slate-900/95 backdrop-blur-md border border-brand-500/40 rounded-2xl p-3.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                      <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-400 truncate">
+                        Detected Live
+                      </span>
+                      {liveResult.result.match_score !== null && (
+                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                          ({Math.round(liveResult.result.match_score * 100)}%)
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-sm font-bold text-white truncate mt-0.5">
+                      {liveResult.result.predicted_item || "Uncertain Material"}
+                    </h4>
+                    <p className="text-[11px] text-slate-300 truncate">
+                      {liveResult.result.suggested_route || "Inspect item before sorting"}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopStream();
+                      if (onLiveConfirm) {
+                        onLiveConfirm(liveResult.file);
+                      } else {
+                        onCapture(liveResult.file, "camera");
+                      }
+                    }}
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 active:scale-95 text-white text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all shrink-0"
+                    aria-label="Confirm detected waste item"
+                  >
+                    <span>Confirm</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

@@ -16,6 +16,7 @@ import {
   ModelStatusResponse,
   DetectorStatusResponse,
   ScanClassificationResponse,
+  ScanPreviewResponse,
   ScanConfirmationRequest,
   ScanConfirmationResponse,
   BatchScanResponse,
@@ -272,6 +273,23 @@ export async function submitScan(file: File | Blob): Promise<ScanClassificationR
  * Submits confirmed item classification to be committed to the Digital Twin inventory.
  * Requires an idempotency key to prevent accidental duplicate additions on retry.
  */
+/**
+ * POST /api/scans/preview
+ * Runs single-image classification for live camera feedback without creating a pending scan.
+ */
+export async function previewScan(file: File | Blob): Promise<ScanPreviewResponse> {
+  const url = `${getApiBaseUrl()}/api/scans/preview`;
+  const formData = new FormData();
+  formData.append("file", file, file instanceof File ? file.name : "camera-preview.jpg");
+
+  const response = await fetchWithTimeout(url, {
+    method: "POST",
+    body: formData,
+    headers: { Accept: "application/json" },
+    timeoutMs: 30000,
+  });
+  return handleResponse<ScanPreviewResponse>(response);
+}
 export async function confirmScan(
   scanId: string,
   payload: ScanConfirmationRequest

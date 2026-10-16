@@ -66,6 +66,18 @@ export interface ScanClassificationResponse {
   classification_status: ClassificationStatus;
 }
 
+/** POST /api/scans/preview, multipart field `file`; does not create a scan record. */
+export interface ScanPreviewResponse {
+  predicted_item: string | null;
+  predicted_category: ClassificationCategory | null;
+  /** Model-specific score; it is not a calibrated probability. */
+  match_score: number | null;
+  manual_review_recommended: boolean;
+  suggested_route: string;
+  explanation: string;
+  model_identifier: string;
+  classification_status: ClassificationStatus;
+}
 /** POST /api/materials/confirm. `destination_bin_id` is optional; backend routing applies when omitted. */
 export interface ScanConfirmationRequest {
   scan_id: string;

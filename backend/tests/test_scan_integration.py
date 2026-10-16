@@ -62,6 +62,63 @@ def integrated_client(monkeypatch, test_db):
         clear_event_listeners()
 
 
+def test_preview_is_transient_and_confirmation_is_the_only_inventory_commit(integrated_client):
+    client, test_sessions = integrated_client
+    registered = []
+    register_event_listener(lambda event_type, _payload: registered.append(event_type))
+
+    preview = client.post(
+        "/api/scans/preview",
+        files={"file": ("preview.jpg", jpeg_bytes(), "image/jpeg")},
+    )
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    assert "scan_id" not in preview_body
+    assert preview_body["predicted_category"] == "recyclable"
+
+    with test_sessions() as db:
+        assert db.query(Scan).count() == 0
+        assert db.query(MaterialEntry).count() == 0
+        assert db.query(MaterialEvent).count() == 0
+        assert sum(item.current_inventory for item in db.query(VirtualBin).all()) == 0
+    assert registered == []
+
+    scan_response = client.post(
+        "/api/scans",
+        files={"file": ("selected.jpg", jpeg_bytes(), "image/jpeg")},
+    )
+    assert scan_response.status_code == 200, scan_response.text
+    scan_id = scan_response.json()["scan_id"]
+    with test_sessions() as db:
+        scan = db.query(Scan).filter_by(id=scan_id).one()
+        assert scan.review_status == "pending"
+        assert db.query(MaterialEntry).count() == 0
+        assert db.query(MaterialEvent).count() == 0
+        assert sum(item.current_inventory for item in db.query(VirtualBin).all()) == 0
+    assert registered == []
+
+    confirmed = client.post(
+        "/api/materials/confirm",
+        json={"scan_id": scan_id, "confirmed_category": "paper"},
+    )
+    assert confirmed.status_code == 201, confirmed.text
+    with test_sessions() as db:
+        assert db.query(Scan).filter_by(id=scan_id).one().review_status == "confirmed"
+        assert db.query(MaterialEntry).filter_by(scan_id=scan_id).count() == 1
+        assert db.query(MaterialEvent).filter_by(scan_id=scan_id).count() == 1
+        assert db.query(VirtualBin).filter_by(id="bin-paper").one().current_inventory == 1
+    assert registered == ["material_confirmed"]
+
+    duplicate = client.post(
+        "/api/materials/confirm",
+        json={"scan_id": scan_id, "confirmed_category": "paper"},
+    )
+    assert duplicate.status_code == 409
+    with test_sessions() as db:
+        assert db.query(MaterialEntry).filter_by(scan_id=scan_id).count() == 1
+        assert db.query(MaterialEvent).filter_by(scan_id=scan_id).count() == 1
+        assert db.query(VirtualBin).filter_by(id="bin-paper").one().current_inventory == 1
+
 def test_scan_confirm_snapshot_websocket_and_reopen(integrated_client):
     client, test_sessions = integrated_client
     registered = []
