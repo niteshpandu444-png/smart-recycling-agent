@@ -111,7 +111,7 @@ export const OverviewMetrics: React.FC<OverviewMetricsProps> = ({ metrics, isLoa
                   OBSERVED
                 </span>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  Active Routes / Bins
+                  Bins Tracked
                 </span>
               </div>
               <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -178,7 +178,10 @@ export const OverviewMetrics: React.FC<OverviewMetricsProps> = ({ metrics, isLoa
             {/* Visual stacked percentage bar */}
             <div className="w-full h-3 rounded-full bg-slate-100 dark:bg-slate-800 flex overflow-hidden mb-4 border border-slate-200/50 dark:border-slate-700/50">
               {breakdown.map((item) => {
-                const config = CATEGORY_METRIC_CONFIG[item.category] || CATEGORY_METRIC_CONFIG.unknown;
+                const config = CATEGORY_METRIC_CONFIG[item.category] || {
+                  ...CATEGORY_METRIC_CONFIG.unknown,
+                  label: item.category,
+                };
                 const widthPercent = Math.max(0, Math.min(100, item.percentageOfTotal));
                 if (widthPercent === 0) return null;
                 return (
@@ -196,7 +199,10 @@ export const OverviewMetrics: React.FC<OverviewMetricsProps> = ({ metrics, isLoa
             {/* Category breakdown pill chips */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {breakdown.map((item) => {
-                const config = CATEGORY_METRIC_CONFIG[item.category] || CATEGORY_METRIC_CONFIG.unknown;
+                const config = CATEGORY_METRIC_CONFIG[item.category] || {
+                  ...CATEGORY_METRIC_CONFIG.unknown,
+                  label: item.category,
+                };
                 return (
                   <div
                     key={item.category}

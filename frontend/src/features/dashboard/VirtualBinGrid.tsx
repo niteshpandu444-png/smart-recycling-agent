@@ -178,7 +178,10 @@ export const VirtualBinGrid: React.FC<VirtualBinGridProps> = ({ bins = [], isLoa
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {bins.map((bin) => {
-          const theme = CATEGORY_BIN_THEMES[bin.category] || CATEGORY_BIN_THEMES.unknown;
+          const theme = CATEGORY_BIN_THEMES[bin.category] || {
+            ...CATEGORY_BIN_THEMES.unknown,
+            label: bin.category,
+          };
           const statusConfig = STATUS_CONFIG[bin.status] || STATUS_CONFIG.unknown;
           const occupancy = calculateSafeOccupancy(bin.currentInventory, bin.capacity, bin.occupancyPercentage);
 
