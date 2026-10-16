@@ -13,8 +13,10 @@ events, and bin state use the teammate's shared SQLAlchemy models and services.
   inference availability, and a safe diagnostic status.
 - HTTP browser access uses the comma-separated `CORS_ORIGINS` allowlist.
   Local development defaults to `http://localhost:3000` and
-  `http://127.0.0.1:3000`; set the deployed frontend origin in `backend/.env`
-  when the hosting URL is known. Credentials are disabled because this API
+  `http://127.0.0.1:3000`; the deployed Vercel frontend is also included in the
+  defaults. A set `CORS_ORIGINS` environment variable overrides these defaults,
+  so include every deployed frontend origin in its comma-separated value.
+  Credentials are disabled because this API
   does not use browser cookies or session authentication.
 - `POST /api/scans` accepts `multipart/form-data` with one image field named
   `file`, commits its `Scan` record, and returns `ClassificationResponse`.
